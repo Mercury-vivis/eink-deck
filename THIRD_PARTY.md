@@ -18,7 +18,7 @@
 
 ## 上游项目（风格与模板基础）
 
-本仓库的渲染引擎、版式体系与工具链为从零原创；视觉与模板基础来自上游项目 **guizang-ppt-skill**（作者 op7418，[GitHub](https://github.com/op7418/guizang-ppt-skill)），按 AGPL-3.0 署名如下，保留原作者版权。
+本仓库的渲染引擎、版式体系与工具链为从零创作；视觉与模板基础来自上游项目 **guizang-ppt-skill**（作者 op7418，[GitHub](https://github.com/op7418/guizang-ppt-skill)），按 AGPL-3.0 署名如下，保留原作者版权。
 
 | 资源 | 迭代基础版本 | 原许可证 | 来源 | 与本仓库的关系 |
 |---|---|---|---|---|
