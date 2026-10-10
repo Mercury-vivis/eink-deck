@@ -1,0 +1,10 @@
+# eink-deck 运行依赖（Python 3.12+）
+# 安装：pip install -r requirements.txt
+# 说明：引擎运行只需要 Pillow + fontTools（图片预处理 / 字体子集化）；
+
+#       brotli 用于 woff2 字体子集（fontTools 子集化的常见依赖）；
+#       certifi 让 get_fonts.py 在缺少系统根证书库的机器上仍能校验证书。
+Pillow>=10.0
+fontTools>=4.40
+brotli>=1.0
+certifi>=2024.1

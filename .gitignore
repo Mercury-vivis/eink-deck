@@ -1,0 +1,23 @@
+# 字节码（跨机 Python 版本不一，提交的 .pyc 易陈旧且膨胀仓库）
+__pycache__/
+*.pyc
+
+# 本地字体缓存（由 get_fonts.py 下载，不进库）
+eink-font-cache/
+
+# 渲染 / 打包产物
+*_eink/
+*.eink/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# golden / baseline 门禁产物（测试生成，不入库）
+_golden_render/
+_baseline_renders.json
+
+# 本机 WorkBuddy 状态（独立仓库时保险）
+.workbuddy/
