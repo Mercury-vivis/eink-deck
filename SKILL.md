@@ -51,6 +51,12 @@ version: 2.4.56
 > 改引擎或模板：**直接改本技能包**，改完即生效（OneDrive 双机同步）。  
 > 各工作区只放：大纲 .md、`images/` 配图、可选的 `_svg_overrides.json` 设计侧车（**放各自生成目录**，见「示意图注入（SVG 协议）」）、输出目录。
 
+## 来源与许可
+
+- **原创主体（© 2026 老陈 / 帮帮）**：整套 Python 渲染引擎（大纲 Markdown → 自包含 HTML 的渲染管线、契约系统、版式分发器）、版式体系 L01–L27（28 个）+ 通用元件、bat / tests / golden 自检等工具链，均为本技能从零创作（上游基础版为 HTML 模板 + mjs，不含任何 Python）。
+- **风格来源（致谢）**：「电子墨水」视觉主题、WebGL 双背景（light/dark）、版式语法体系与字体栈（Playfair Display / Source Serif 4 / IBM Plex Mono / Noto Serif SC / Noto Sans SC）源自 **guizang-ppt-skill**（作者 op7418，[GitHub](https://github.com/op7418/guizang-ppt-skill)），为本技能提供了视觉与模板地基；版式在其约 10 个布局基础上扩展为 28 个。迭代基础为 guizang-ppt-skill 的 WorkBuddy 市场版 **v1.0.0**（技能内部版本 **1.0.1**，约 2026-07-22 安装）。
+- **许可**：因包含 guizang-ppt-skill 的 AGPL-3.0 代码（原作 © 2026 op7418），本技能整包以 **AGPL-3.0** 发布并保留原作者版权；原创部分的著作权归属不受影响。完整文本见 [LICENSE](./LICENSE)，第三方资源（Motion One MIT、Lucide ISC）见 [THIRD_PARTY.md](./THIRD_PARTY.md)。
+
 ## 资源文件导览（本 skill 自带）
 
 ```

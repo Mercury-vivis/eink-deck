@@ -15,3 +15,11 @@
 ## 字体
 
 `engine/eink_assets/get_fonts.py` 负责下载 / 子集化字体（如思源宋体等）。字体文件本身**不随本仓库分发**（由用户在本地按其各自许可证获取），仅入库脚本与缓存目录（已被 `.gitignore` 排除 `eink-font-cache/`）。
+
+## 上游项目（风格与模板基础）
+
+本仓库的渲染引擎、版式体系与工具链为从零原创；视觉与模板基础来自上游项目 **guizang-ppt-skill**（作者 op7418，[GitHub](https://github.com/op7418/guizang-ppt-skill)），按 AGPL-3.0 署名如下，保留原作者版权。
+
+| 资源 | 迭代基础版本 | 原许可证 | 来源 | 与本仓库的关系 |
+|---|---|---|---|---|
+| guizang-ppt-skill | WorkBuddy 市场版 v1.0.0（技能内部版本 1.0.1，约 2026-07-22 安装） | **AGPL-3.0** | github.com/op7418/guizang-ppt-skill（© 2026 op7418） | 本仓库的「电子墨水」视觉主题、WebGL 双背景（light/dark）、版式语法体系与字体栈（Playfair Display / Source Serif 4 / IBM Plex Mono / Noto Serif SC / Noto Sans SC）源自此技能；本仓库重写了渲染引擎（Python）、将版式由约 10 个扩充至 L01–L27（28 个）、并移除了其瑞士国际主义风格（Style B）。 |
