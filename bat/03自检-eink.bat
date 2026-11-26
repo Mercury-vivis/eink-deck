@@ -28,18 +28,20 @@ if not exist "%SKILL_DIR%" (
     pause
     exit /b
 )
-:: ---- Interpreter: prefer PATH python, fall back to common install locations ----
-set "PY=python"
-where python >nul 2>nul
-if errorlevel 1 (
-    set "PY="
-    for %%P in (
-        "%USERPROFILE%\AppData\Local\Programs\Python\Python313\python.exe"
-        "C:\Program Files\Python\Python313\python.exe"
-        "%USERPROFILE%\AppData\Local\Programs\Python\Python312\python.exe"
-        "C:\Python313\python.exe"
-    ) do ( if not defined PY if exist "%%~P" set "PY=%%~P" )
-)
+:: ---- Interpreter: the normalized project venv FIRST, then legacy installs ----
+::      2026-11-02: prefer the project venv (set PROJECT_VENV), then legacy installs (
+::      dates vary by machine). One name
+::      everywhere, nothing to mix up. PATH "python" stays as the last
+::      resort for other machines.
+set "PY="
+for %%P in (
+    "%PROJECT_VENV%\Scripts\python.exe"
+    "%USERPROFILE%\AppData\Local\Programs\Python\Python313\python.exe"
+    "C:\Program Files\Python\Python313\python.exe"
+    "%USERPROFILE%\AppData\Local\Programs\Python\Python312\python.exe"
+    "C:\Python313\python.exe"
+) do ( if not defined PY if exist "%%~P" set "PY=%%~P" )
+if not defined PY set "PY=python"
 "%PY%" --version
 if errorlevel 1 (
     echo ERROR: python not found - tried "%PY%".

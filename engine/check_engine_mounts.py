@@ -93,6 +93,7 @@ IGNORE = {
     "footnote", "annotation", "meta_notes", "m14_align", "callout_fixed",
     # 内部应用键（apply_module/build_lecture 写入，非大纲字段）：
     "m10_h", "m10_v", "m11_h", "m11_v", "m08_v", "m08_h",
+    "m06_size", "m08_size", "m10_size", "m16_size", "m16_v", "m16_h",
     "title_align", "title_aligns", "hbar_scale", "accent_first",
     "img_align", "cols", "points", "fit_ratio",
 }

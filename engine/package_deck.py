@@ -20,7 +20,7 @@
       ⚠️ 交付稿名跟随**大纲文件名**——想更有信息量，改大纲文件命名
       （如 `第2讲-车战与妇好钺_大纲.md` → `第2讲-车战与妇好钺.html`），别手改产物。
 
-打包器做五件事
+打包器做六件事
 --------------
   1. 内联 assets/lucide.umd.min.js（UMD，直拼 <script>）；
   2. <script src="assets/motion.min.js"> 整段内联进 <script> 块（classic 版 motion，
@@ -36,7 +36,9 @@
      **data URI**。渲染器只把图拷到 images/ 并在 HTML 里写相对路径 `images/xxx`，
      不内联则交付稿一旦拷出产物目录，图片全部开天窗
      （2026-09-09 老陈实测第2讲发现的 P0：单文件承诺在图片上是破的）；
-     图缺失/路径越界 → 告警并保留原路径（不阻断，但交付稿会缺图，收尾会点名）。
+     图缺失/路径越界 → 告警并保留原路径（不阻断，但交付稿会缺图，收尾会点名）；
+  6. 背景音乐体积提示：全部音频（顶部默认曲 / 音乐库 / 页内换曲）在渲染期已 base64
+     内嵌进 index.html，打包器逐首核体积、超过 5MB 告警（不阻断），不额外搬运文件。
 
 安全与降级
 ----------
@@ -296,6 +298,15 @@ def package(deck_dir, out_name=None):
     print("[打包] 配图：%s" % img_note)
     if img_missing:
         _warn("以下配图未内联，交付稿拷出产物目录后将不显示：%s" % "；".join(img_missing))
+
+    # ---- 5b. 背景音乐体积提示（渲染时已 base64 内嵌；打包器只核体积，不再搬运音频） ----
+    for _bm in re.finditer(r"data:(audio/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)", html_text):
+        _raw = base64.b64decode(_bm.group(2))
+        _mb = len(_raw) / 1024 / 1024
+        if _mb > 5:
+            _warn("背景音乐（%s）%.1fMB——base64 后单文件明显变大，建议换更短的音频或更低码率" % (_bm.group(1), _mb))
+        else:
+            print("[打包] 背景音乐已内嵌（%s，%.0f KB）" % (_bm.group(1), len(_raw) / 1024))
 
     # ---- 收尾校验：不应残留任何会 fetch 本地 assets 的引用 ----
     # （先剥 JS 块注释再查——_deck_js 的历史注释里含字面 import('./assets/…')，非真实引用）

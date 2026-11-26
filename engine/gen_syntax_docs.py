@@ -68,6 +68,9 @@ def gen_syntax_cheatsheet(reg):
 
     # 3. 模块字段
     L.append("\n## 3. 模块字段（M01–M16）\n")
+    L.append("> **三控口径（字号 / 垂直 / 水平）**：垂直默认 vh、水平默认 vw，可写显式单位（`3vh`、`-2vw`）。")
+    L.append("> 字号取值 `大` / `小` / `中` / 数字倍数（如 `1.25`）。优先级：**行内 `<size=>` > 逐行「行大小」 > 整页「字号」**——")
+    L.append("> 三者同时写时，细粒度的胜出，粗粒度的作为底色。图像类（M12）没有字号，缩放用 `maxh` / `ratio`。\n")
     for m, v in reg.MODULE_FIELDS.items():
         note = v.get("note", "")
         ctrl = v.get("controls", "")
@@ -110,7 +113,10 @@ def gen_syntax_cheatsheet(reg):
     L.append("")
 
     # 7. 行内标记
-    L.append("\n## 7. 行内标记（M10 正文内）\n")
+    L.append("\n## 7. 行内标记（写在正文/标题/引文等文本字段里）\n")
+    L.append("> **强调两条路**：页级 `强调: [词]` 给全页同名文字统一着色；行内 `<accent>词</accent>` 只给指定那一处着色。")
+    L.append("> 两者可并存，但写进锚点表的词仍会全页着色——**要「只标一处」就别把该词写进锚点表**。")
+    L.append("> 不参与着色的字段：%s。\n" % reg.MODULE_FIELDS["M15"]["fields"]["不参与着色的字段"])
     for k, v in reg.INLINE_MARKS.items():
         L.append("- **`%s`**：%s" % (k, v["semantics"]))
 

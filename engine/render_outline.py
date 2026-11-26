@@ -31,10 +31,11 @@
       - 设计: ...                        (给帮帮的画图指令，渲染为待设计占位，不原样进页面)
       - meta-row: ...                       (cover 元信息)
 """
-import os, re, sys, json
+import os, re, sys, json, base64
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eink_template import build, validate, sanitize_svg, _img_size
+from _eink_template import build, validate, sanitize_svg, _img_size, split_struct
+_split_struct = split_struct   # 斜杠切分唯一实现在 _eink_template.split_struct（引文分行同用一份）
 
 LAYOUT_MAP = {
     "L01": "cover", "L02": "hero", "L03": "lead", "L04": "statgrid", "L05": "grid2",
@@ -148,28 +149,10 @@ def parse_compound_item(kind, s):
 
 
 def _split_struct(val):
-    """结构分隔符切分——全引擎斜杠切分的唯一原语（2026-09-03 收敛；2026-09-04 split_kv 亦委托至此）。
-
-    规则：**两侧带空白**的 `/` 或 `／` 才是分行/分项符；
-    贴字斜杠（唐/突厥、从征/归附/谯发/垛集、"火力组/机动组"）是正文内容，不切。
-
-    为什么必须要求空白：全系列实测 32 处贴字斜杠，其中 M10 正文 内就有
-    「来源分从征/归附/谯发/垛集四类」「皇帝/中央—将领/地方—全民/兵民合一」等十余处，
-    若按任意斜杠切会把正文拆得支离破碎（第13/14/16讲会直接毁页）。
-    另保护 `</xxx>` 结束标签内的斜杠，避免 `<size=..>词</size>` 被切断、泄漏标签。"""
-    if not val:
-        return []
-    protected = []
-    s2 = val
-    if "</" in val:
-        def _p(m):
-            protected.append(m.group(0))
-            return "\x00%d\x00" % (len(protected) - 1)
-        s2 = re.sub(r"</[^>]+>", _p, val)
-    parts = [p.strip() for p in re.split(r"\s+[/／]\s+", s2) if p.strip()]
-    for i, tok in enumerate(protected):
-        parts = [p.replace("\x00%d\x00" % i, tok) for p in parts]
-    return parts
+    """结构分隔符切分（本模块入口别名）。实现只有一份：`_eink_template.split_struct`，
+    因为引文分行 `_q_lines` 在模板层、正文/M08 分行在解析层，两边各抄一遍必然分叉
+    （2026-11-20 实测：`<accent>甲 / 乙</accent>` 在正文页正常、在引文页漏标签）。"""
+    return split_struct(val)
 
 
 def parse_split(s):
@@ -306,9 +289,9 @@ def apply_module(cur, mod, field, val):
         elif "对齐" in field:  # 如「M06 行对齐: 居左·居右」「M06 对齐: 左·右」
             cur["title_aligns"] = _parse_aligns(val)
         elif "字号" in field:
-            # M06 无字号三控（SKILL §G 已知坑）：写「M06 字号:」会静默把主标题覆盖成该值。
-            # 这里显式警告并忽略，保住原标题（2026-09-06 修复）。
-            print("  [模块警告] M06 不支持「字号」三控（会覆盖主标题）；请改用行内 <size=0.6>：%s" % val)
+            # M06 页级字号档位（2026-11-20 开放）：大/小 走 fs-* 相对本版式基准缩放，
+            # 数字按倍数（inline font-size）。行内 <size=0.6> 仍在 em() 链内生效，优先级最高。
+            cur["m06_size"] = val
         elif val:
             if "/" in val or "／" in val:
                 cand = _split_struct(val)
@@ -337,9 +320,9 @@ def apply_module(cur, mod, field, val):
         elif "行大小" in field or "行字号" in field:
             cur["line_sizes"] = _parse_sizes(val)
         elif "字号" in field:
-            # M08 无整体字号三控（SKILL §G 已知坑）：写「M08 字号:」会静默把主题句覆盖成该值。
-            # 逐行字号用「M08 行大小: 小·大」。显式警告并忽略，保住主题句（2026-09-06 修复）。
-            print("  [模块警告] M08 不支持「字号」三控（会覆盖主题句）；请改用「M08 行大小: 小·大」：%s" % val)
+            # M08 页级字号档位（2026-11-20 开放）：作用于整页基准，逐行「行大小」仍可单独覆盖，
+            # 行内 <size=> 再覆盖二者 —— 三级优先级由「行内 span > size-* 绝对类 > fs-* 变量」保证。
+            cur["m08_size"] = val
         # 对齐仅认 field 含「对齐」（或裸字段「- M08: 中」的历史写法兜底）；
         # 内容值（如标题恰好是「中/左/右」）不再被当对齐指令静默吞掉（2026-09-04 修复）
         elif ("对齐" in field) or (not field and val in ("居中", "居左", "居右", "中", "左", "右", "center", "left", "right")):
@@ -362,15 +345,9 @@ def apply_module(cur, mod, field, val):
                     cur["title_lines"] = cand
             cur["title"] = val
     elif mod == "M10":
-        if f.startswith("字号"):
-            # M10 无「字号」三控（SKILL §G）：该值此前被 _three_ctrl 解析存下却从未透传，
-            # 页面毫无变化、日志也无提示——与 M06/M08 同款坑（那两个 2026-09-06 已加警告）。
-            # 2026-09-08 修复 R3：显式告警并指路真正有效的写法。
-            # ⚠️ 正确替代品是行尾未闭合 <size=大>（整段放大）或 <size=大>词</size>（局部放大），
-            # 不是「M10 垂直 / 水平」——那是位移，替代不了字号。
-            print("  [模块警告] M10 不支持「字号」三控（写了不生效）；整段放大请在本行行尾写未闭合 "
-                  "<size=大>，局部放大用 <size=大>词</size>：%s" % val)
-        elif not _three_ctrl(cur, "m10", f, val):
+        # M10 三控（2026-11-20 起字号也生效）：字号档位作用于本页所有正文块（fs-*，相对基准缩放）；
+        # 逐块差异用行内 <size=大>词</size> 或行尾未闭合 <size=大>（块级 size-* 绝对值，覆盖页级）。
+        if not _three_ctrl(cur, "m10", f, val):
             if f.startswith("notes"):
                 cur["notes"] = val
                 if not val.strip():
@@ -428,6 +405,11 @@ def apply_module(cur, mod, field, val):
         elif "来源" in field or "caption" in field:
             # 「M12 图片来源 / M12 caption」已停用（图下不再显示来源）；安全忽略，不渲染
             pass
+        elif f.startswith("字号"):
+            # M12 无字号三控（2026-11-20）：图片没有字号概念，不许把「字号」当 label 塞进 alt。
+            # 缩放请用 maxh / ratio（图框尺寸），位移用 垂直/水平。
+            print("  [模块警告] M12 不支持「字号」（图片无字号概念）；缩放请用 "
+                  "「M12 maxh: 数字」或「M12 ratio: 4x3/1x1/3x4」：%s" % val)
         else:
             cur.setdefault("img", {})["label"] = val
     elif mod == "M03":
@@ -457,11 +439,17 @@ def apply_module(cur, mod, field, val):
         #             - 显示文字A | URL_A
         #             - 显示文字B | URL_B
         # 分隔符支持「|」「：」「:」（优先首个出现的 |，否则按 文字<分隔>URL 的最后一个分隔符切）
-        if f.startswith("链接") or f == "link":
+        # 三控（2026-11-20 补）：字号/垂直/水平。此前该分支只认「链接」，三控整行静默丢弃。
+        if _three_ctrl(cur, "m16", f, val):
+            pass
+        elif f.startswith("链接") or f == "link":
             if val.strip():
                 cur.setdefault("links", []).append(_parse_link(val))
             else:
                 cur["_links_pending"] = True   # 空值 + 缩进子项 → 收集进 links 列表
+        else:
+            print("  [模块警告] M16 未知子字段「%s」已忽略（只认 链接/link 与 字号/垂直/水平）：%s"
+                  % (field, val))
 
 
     else:
@@ -630,6 +618,11 @@ def parse_outline(path):
                 _nk = "grid" if nf.group(1) == "图文比例" else nf.group(1)
                 cur[_nk] = nf.group(2).strip()
                 continue
+            # 页级背景音乐（B 方案）：别名 / 路径|音量 / 停；不写则沿用上一页（首页沿顶部默认曲）
+            um = re.match(r"^-\s*音乐[：:]\s*(.*)$", line)
+            if um:
+                cur["music"] = um.group(1).strip()
+                continue
             # 页面级纵向落位/规则线/图底对齐：- 纵向:顶/中/底、- 规则线:是、- 图对齐:底
             vmk = re.match(r"^-\s*(纵向|规则线|图对齐)[：:]\s*(.*)$", line)
             if vmk:
@@ -703,8 +696,10 @@ def _apply_header_fields(p, s, t):
     else:
         if p.get("_m11") is not None:
             s["q"], s["cite"] = p["_m11"], p.get("_m11src", "")
-        if p.get("m11_size"):
-            s["q_size"] = p["m11_size"]
+    # M11 字号三控：quote（L07）与 callout（L10）两条出口都要传（2026-11-20 修：此前只传 L10，
+    # L07 写「M11 字号/垂直/水平」整组无反应）
+    if p.get("m11_size"):
+        s["q_size"] = p["m11_size"]
 
 
 def _warn_body_overflow(s, page_no):
@@ -806,11 +801,12 @@ def _apply_fixed_elements(p, s, t):
         s["m14_v"] = p["m14_v"]
     if p.get("m13_v") is not None:  # M13 垂直微调（vh，负上正下）
         s["m13_v"] = p["m13_v"]
-    # M05-M14 全元件三控透传（2026-08-19：字号 / 垂直 / 水平）
-    for _k in ("m05_size", "m05_v", "m05_h", "m06_v", "m06_h",
-               "m07_size", "m07_v", "m07_h", "m08_h",
-               "m09_size", "m09_v", "m09_h", "m10_h",
-               "m11_v", "m11_h", "m13_h", "m14_h"):
+    # M05-M16 全元件三控透传（字号 / 垂直 / 水平）
+    for _k in ("m05_size", "m05_v", "m05_h", "m06_size", "m06_v", "m06_h",
+               "m07_size", "m07_v", "m07_h", "m08_size", "m08_h",
+               "m09_size", "m09_v", "m09_h", "m10_size", "m10_h",
+               "m11_v", "m11_h", "m13_h", "m14_h",
+               "m16_size", "m16_v", "m16_h"):
         if p.get(_k) is not None:
             s[_k] = p[_k]
     if p.get("design"):
@@ -884,6 +880,55 @@ def _load_svg_overrides(base=None, out_dir=None):
     return {}
 
 
+# 背景音乐（顶部 `背景音乐:` 默认曲 + `音乐库:` 命名曲目 + 页内 `音乐:` 换曲/停）——
+# 引擎只认相对大纲目录的路径，白名单扩展名 + base64 内嵌进 HTML，交付稿断网自包含。
+# 首次手势起播与切页换曲由模板 JS 负责。
+_BGM_MIME = {
+    ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4",
+    ".ogg": "audio/ogg", ".oga": "audio/ogg", ".wav": "audio/wav",
+    ".webm": "audio/webm",
+}
+_BGM_OFF = {"停", "关", "无", "静音", "off", "stop", "none"}
+
+
+def _bgm_data(raw, base):
+    """解析背景音乐元数据 → {"src": data URI, "volume": 0..1}；失败返回 None（只告警不阻断）。"""
+    parts = str(raw or "").split("|")
+    rel = parts[0].strip().strip("\"'")
+    if not rel:
+        return None
+    if not base or os.path.isabs(rel) or ".." in rel.replace("\\", "/").split("/"):
+        print("  [背景音乐警告] 拒绝绝对路径/目录穿越或未设大纲目录：%s" % rel)
+        return None
+    ext = os.path.splitext(rel)[1].lower()
+    mime = _BGM_MIME.get(ext)
+    if not mime:
+        print("  [背景音乐警告] 不支持的音频格式 %s（支持 %s）" % (ext or "无扩展名",
+              "/".join(sorted(_BGM_MIME))))
+        return None
+    src = os.path.normpath(os.path.join(base, rel))
+    base_norm = os.path.normpath(base)
+    if src != base_norm and not src.startswith(base_norm + os.sep):
+        print("  [背景音乐警告] 路径越界，跳过：%s" % src)
+        return None
+    if not os.path.isfile(src):
+        print("  [背景音乐警告] 找不到音频文件，跳过：%s" % src)
+        return None
+    vol = 60
+    if len(parts) > 1 and parts[1].strip():
+        try:
+            vol = int(float(parts[1].strip()))
+        except ValueError:
+            print("  [背景音乐警告] 音量「%s」不是数字，按 60 处理" % parts[1].strip())
+        else:
+            vol = max(0, min(100, vol))
+            if vol != int(float(parts[1].strip())):
+                print("  [背景音乐警告] 音量超出 0–100，按 %d 处理" % vol)
+    with open(src, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("ascii")
+    return {"src": "data:%s;base64,%s" % (mime, b64), "volume": vol / 100.0, "rel": rel}
+
+
 def build_lecture(meta, pages, base=None, out_dir=None):
     slides = []
     _m = re.search(r"\d+", meta.get("讲次", "1"))
@@ -907,6 +952,59 @@ def build_lecture(meta, pages, base=None, out_dir=None):
     else:
         font_mood = str(meta.get("字体基调", "")).strip()  # 离线时另指定基调
     font_mode = "local" if _is_local else ""
+    _bgm_raw = meta.get("背景音乐", "")
+    bgm_default = _bgm_data(_bgm_raw, base) if _bgm_raw else None
+    # 音乐库：别名=路径|音量，可写多首（「；」或「;」分隔）；页内 `音乐: 别名` 引用。
+    _music_lib = {}
+    for _seg in re.split(r"[；;]", str(meta.get("音乐库", "") or "")):
+        _seg = _seg.strip()
+        if not _seg:
+            continue
+        if "=" not in _seg:
+            print("  [音乐库警告] 条目缺「=」（写法：别名=文件|音量），跳过：%s" % _seg)
+            continue
+        _name, _spec = _seg.split("=", 1)
+        _track = _bgm_data(_spec.strip(), base)
+        if _name.strip() and _track:
+            _music_lib[_name.strip()] = _track
+    # 曲目去重（同文件+同音量只内嵌一次）；plan 逐页对齐 slides，索引 -1 = 本页静音。
+    # 页内不写 `音乐:` → 沿用上一页；首页沿顶部默认曲；写「停/关/off」→ 本页静音。
+    _bgm_tracks = []
+    def _bgm_index(track):
+        if not track:
+            return -1
+        _key = (str(track.get("rel", "")).replace("\\", "/").lower(), track.get("volume"))
+        for _i, _t in enumerate(_bgm_tracks):
+            if _t["_key"] == _key:
+                return _i
+        _bgm_tracks.append({"src": track["src"], "volume": track["volume"], "_key": _key})
+        return len(_bgm_tracks) - 1
+    _cur_track = _bgm_index(bgm_default)
+    _bgm_plan = []
+    for _p in pages:
+        _raw = _p.get("music")
+        if _raw is None or not str(_raw).strip():
+            pass                                  # 继承上一页
+        else:
+            _val = str(_raw).strip()
+            if _val.lower() in _BGM_OFF:
+                _cur_track = -1
+            elif _val in _music_lib:
+                _cur_track = _bgm_index(_music_lib[_val])
+            elif os.path.splitext(_val.split("|", 1)[0].strip().strip("\"'"))[1].lower() not in _BGM_MIME:
+                print("  [页级音乐警告] 未知别名或非法路径：%s（别名须先在「音乐库:」声明）" % _val)
+                _cur_track = -1
+            else:
+                _cur_track = _bgm_index(_bgm_data(_val, base))
+        _bgm_plan.append(_cur_track)
+    _tracks_public = [{k: v for k, v in _t.items() if k != "_key"} for _t in _bgm_tracks]
+    if bgm_default:
+        bgm = {"src": bgm_default["src"], "volume": bgm_default["volume"],
+               "tracks": _tracks_public, "plan": _bgm_plan}
+    elif _tracks_public:
+        bgm = {"src": "", "volume": 0.6, "tracks": _tracks_public, "plan": _bgm_plan}
+    else:
+        bgm = None
     SVG_OV = _load_svg_overrides(base, out_dir)
     for _pi, p in enumerate(pages, 1):
         t = LAYOUT_MAP.get(p.get("layout", ""), "text")
@@ -935,7 +1033,7 @@ def build_lecture(meta, pages, base=None, out_dir=None):
     _st = int(_st) if (str(_st).strip().isdigit() and int(_st) > 0) else len(pages)
     return {"title": title, "lecture_no": lec_no, "series_total": _st,
             "series_name": series, "lecture_title": title, "theme": theme,
-            "font_mood": font_mood, "font_mode": font_mode, "slides": slides}
+            "font_mood": font_mood, "font_mode": font_mode, "bgm": bgm, "slides": slides}
 
 
 def _prepare_local_images(pages, base, out_dir):

@@ -150,7 +150,7 @@ def _hex2rgb01(hexc):
 _THIS = os.path.dirname(os.path.abspath(__file__))
 _HEAD = '<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>eink 演示</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@300;400;500;600&family=Noto+Serif+SC:wght@300;400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">'
 
-_CSS = '\n  :root{\n    /* ============ 主题色（此处为兜底默认值；渲染时按 `- 主题:` / --theme 整体覆盖） ============\n       切换主题:改本文件 THEMES 预设,或渲染时 --theme=<名>(build() 会整体覆盖注入 :root)\n       整体替换这几行(--ink / --ink-rgb / --paper / --paper-rgb)\n       其他地方散落的 rgba() 都走 var(--ink-rgb) / var(--paper-rgb),无需逐处改 */\n    --ink:#2a1e13;\n    --ink-rgb:42,30,19;\n    --paper:#eedfc7;\n    --paper-rgb:238,223,199;\n    --paper-tint:#e0d0b6;\n    --ink-tint:#3a2a1d;\n\n    /* ============ 字体(跨主题固定) ============ */\n    --mono:"IBM Plex Mono",ui-monospace,monospace;\n    --serif-en:"Playfair Display","Source Serif 4",Georgia,serif;\n    --serif-body-en:"Source Serif 4",Georgia,serif;\n    --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;\n    --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;\n    /* 中文无衬线（页眉/页脚/小字用，粗体） */\n    --yahei:"Microsoft YaHei","微软雅黑",var(--sans-zh),sans-serif;\n    /* 第三色：accent 点睛强调色（克制使用；色值随主题，非恒定红） */\n    --accent:#a8331f;        /* light 页上的强调色（兜底值，渲染时被主题覆盖） */\n    --accent-ink:#d65436;    /* dark 页上的强调色（更亮保可读；兜底值，被主题覆盖） */\n  }\n  *{box-sizing:border-box;margin:0;padding:0}\n  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:var(--sans-zh);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\n\n  /* ============ WebGL 双背景 ============ */\n  canvas.bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;transition:opacity 1.2s ease}\n  canvas#bg-light{opacity:0}\n  canvas#bg-dark{opacity:1}\n  body.light-bg canvas#bg-light{opacity:1}\n  body.light-bg canvas#bg-dark{opacity:0}\n  body.low-power canvas.bg{display:none!important}\n\n  /* ============ Deck 容器 + 翻页 ============ */\n  /* width: NSLIDES * 100vw，会在 JS 里动态矫正 */\n  #deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .9s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}\n  .slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;padding:6vh 6vw 10vh 6vw;display:flex;flex-direction:column;overflow:hidden}\n  .slide.light{color:var(--ink);background:var(--paper)}\n  .slide.dark{color:var(--paper);background:var(--ink)}\n\n  /* 默认页：遮罩较厚，保证文字可读 */\n  .slide::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;transition:background .7s ease}\n  .slide.light::before{background:rgba(var(--paper-rgb),.78);backdrop-filter:blur(3px)}\n  .slide.dark::before{background:rgba(var(--ink-rgb),.78);backdrop-filter:blur(3px)}\n  /* Hero 页：遮罩大幅降低，让 WebGL 背景明显透出 */\n  .slide.hero.light::before{background:rgba(var(--paper-rgb),.16);backdrop-filter:none}\n  .slide.hero.dark::before{background:rgba(var(--ink-rgb),.12);backdrop-filter:none}\n  /* Hero 页顶底微弱渐隐，保证 chrome/foot 区域可读 */\n  .slide.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none}\n  .slide.hero.light::after{background:linear-gradient(180deg,rgba(var(--paper-rgb),.28) 0%,rgba(var(--paper-rgb),0) 14%,rgba(var(--paper-rgb),0) 86%,rgba(var(--paper-rgb),.28) 100%)}\n  .slide.hero.dark::after{background:linear-gradient(180deg,rgba(var(--ink-rgb),.32) 0%,rgba(var(--ink-rgb),0) 14%,rgba(var(--ink-rgb),0) 86%,rgba(var(--ink-rgb),.32) 100%)}\n\n  /* ============ Magazine chrome：顶部 meta + 底部 foot ============ */\n  /* 2026-09-04 收敛：原 .chrome 在下文「chrome & foot 补位」段被二次定义（后者胜）。\n     已合并为一条，取层叠后的最终值：font-family/size/letter-spacing/opacity/text-transform 用补位段，\n     布局属性（display/justify-content/align-items/font-weight）用本段。 */\n  .chrome{display:flex;justify-content:space-between;align-items:flex-start;font-family:var(--mono);font-weight:700;font-size:max(11px,.78vw);letter-spacing:.2em;text-transform:uppercase;opacity:.62}\n  .chrome .left,.chrome .right{display:flex;gap:2.4em;align-items:center}\n  .chrome .sep{width:40px;height:1px;background:currentColor;opacity:.4}\n  /* 2026-09-04 收敛：原 .foot 在下文「chrome & foot 补位」段被二次定义（后者胜）。\n     已合并为一条，取层叠后的最终值：字体/字距/opacity 用补位段，布局属性用本段。 */\n  .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;font-family:var(--mono);font-weight:700;font-size:max(11px,.78vw);letter-spacing:.18em;text-transform:uppercase;opacity:.5}\n  .foot .title{font-family:var(--yahei);font-weight:700;letter-spacing:.04em;text-transform:none;opacity:.78;font-size:max(13px,1vw)}\n\n  .tag{display:inline-block;font-family:var(--yahei);font-weight:700;font-size:max(12px,.92vw);letter-spacing:.08em;padding:6px 14px;border:1px solid currentColor;opacity:.85}\n  .rule{width:100%;height:1px;background:currentColor;opacity:.25;margin:3vh 0}\n  .rule.v{width:1px;height:100%;margin:0}\n\n  /* ============ 字体规则 ============\n     · 衬线（Noto Serif SC / Playfair）：大标题、重点金句、数字\n     · 非衬线（Noto Sans SC）：正文描述、body、补充说明\n     · 等宽（IBM Plex Mono）：kicker、meta 小标签、foot 右侧\n  */\n  .kicker{font-family:var(--yahei);font-weight:700;font-size:max(14px,1.08vw);letter-spacing:.06em;opacity:.74;margin-bottom:2.6vh}\n  .display{font-family:var(--serif-en);font-weight:700;font-size:11vw;line-height:.92;letter-spacing:-.025em}\n  .display-zh{font-family:var(--serif-zh);font-weight:700;font-size:7.8vw;line-height:1.04;letter-spacing:-.005em}\n  .h1-zh{font-family:var(--serif-zh);font-weight:700;font-size:4.6vw;line-height:1.12;letter-spacing:-.005em}\n  .h2-zh{font-family:var(--serif-zh);font-weight:600;font-size:3.2vw;line-height:1.2;letter-spacing:0}\n  .h3-zh{font-family:var(--serif-zh);font-weight:500;font-size:1.9vw;line-height:1.35}\n  .body-zh{font-family:var(--sans-zh);font-weight:400;font-size:max(15px,1.22vw);line-height:1.75;opacity:.82;letter-spacing:.01em}\n  .body-serif{font-family:var(--serif-zh);font-weight:400;font-size:max(15px,1.3vw);line-height:1.65;opacity:.88}\n  /* 2026-09-04 收敛：.lead 曾在下文「LAYOUTS API · lead 引语」段二次定义（后者胜）。\n     已去重，仅保留最终值（font-size:1.75vw / line-height:1.5 / opacity:.86）。 */\n  .meta{font-family:var(--mono);font-size:max(11px,.88vw);letter-spacing:.16em;text-transform:uppercase;opacity:.6}\n  .big-num{font-family:var(--serif-en);font-weight:800;font-size:10vw;line-height:.85;letter-spacing:-.03em;font-feature-settings:"tnum"}\n  .mid-num{font-family:var(--serif-en);font-weight:700;font-size:5.5vw;line-height:.88;letter-spacing:-.02em;font-feature-settings:"tnum"}\n  .ghost{font-family:var(--serif-en);font-weight:900;font-size:34vw;line-height:.8;opacity:.06;letter-spacing:-.04em;position:absolute;font-feature-settings:"tnum"}\n  em{font-style:italic;font-family:var(--serif-en)}\n  .en{font-family:var(--serif-en);font-style:italic;font-weight:500}\n\n  /* ============ 布局工具 ============ */\n  .col{display:flex;flex-direction:column;gap:2.4vh}\n  .row{display:flex;align-items:center;gap:3vw}\n  .grid-6{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:4vw 6vw;flex:1;align-content:center;padding:2vh 0}\n  .grid-9{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3vh 4vw;flex:1;align-content:center}\n  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:auto;gap:4vh 6vw;flex:1;align-content:center}\n  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:4vw;flex:1;align-content:center}\n  .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:4vw 6vw;flex:1;align-content:center}\n  .split{display:grid;grid-template-columns:1fr 1fr;gap:4vw;flex:1;align-items:start}\n  .split-55{display:grid;grid-template-columns:55fr 45fr;gap:5vw;flex:1;align-items:stretch}\n  .fill{flex:1}\n  .center{align-items:center;justify-content:center;text-align:center}\n  .bottom-left{position:absolute;left:6vw;bottom:9vh;max-width:50vw}\n  .bottom-right{position:absolute;right:6vw;bottom:9vh;max-width:50vw;text-align:right}\n  .top-right{position:absolute;right:6vw;top:6vh;text-align:right}\n\n  /* ============ Stat（数字矩阵） ============ */\n  .stat{display:flex;flex-direction:column;gap:1vh;align-items:flex-start}\n  .stat .n{font-family:var(--serif-en);font-weight:800;font-size:8vw;line-height:.88;letter-spacing:-.03em;font-feature-settings:"tnum"}\n  .stat .l{font-family:var(--sans-zh);font-size:max(13px,1.05vw);opacity:.7;margin-top:1vh;font-weight:400;line-height:1.5}\n  .stat .m{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.5;margin-bottom:.2vh}\n\n  /* ============ Callout（引用框） ============ */\n  .callout{padding:3vh 2.4vw;border-left:3px solid currentColor;position:relative;font-family:var(--serif-zh);font-size:max(15px,1.2vw);line-height:1.55;opacity:.92}\n  .slide.light .callout{background:rgba(var(--ink-rgb),.05)}\n  .slide.dark .callout{background:rgba(var(--paper-rgb),.06)}\n  .callout .cite{display:block;margin-top:1.6vh;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6}\n  .q-big{font-family:var(--serif-zh);font-weight:700;font-size:max(22px,2.8vw);line-height:1.35;text-align:center}\n  .callout .q-big{font-family:var(--serif-zh);font-weight:600;font-size:max(17px,1.6vw);line-height:1.42}\n\n  /* ============ Platform（平台卡） ============ */\n  .plat{display:flex;flex-direction:column;justify-content:flex-end;padding:2vh 0;border-top:1px solid currentColor;border-color:rgba(127,127,127,.35)}\n  .plat .name{font-family:var(--serif-zh);font-weight:700;font-size:1.8vw;margin-bottom:.6vh}\n  .plat .nb{font-family:var(--serif-en);font-weight:700;font-size:3.2vw;letter-spacing:-.02em;line-height:1;font-feature-settings:"tnum"}\n  .plat .sub{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;margin-top:.6vh}\n  .plat .fill{font-family:var(--sans-zh);font-weight:300;font-size:2.4vw;opacity:.28;letter-spacing:-.01em;line-height:1}\n\n  /* ============ Rowline（表格行） ============ */\n  .rowline{display:grid;grid-template-columns:1fr 2fr 1fr;gap:2vw;padding:calc(2.2vh * var(--rs,1));border-top:1px solid currentColor;align-items:center;border-color:rgba(127,127,127,.25);min-height:0}\n  .rowline:last-child{border-bottom:1px solid currentColor;border-color:rgba(127,127,127,.25)}\n  .rowline .k{font-family:var(--serif-zh);font-weight:700;font-size:calc(1.7vw * var(--rs,1))}\n  .rowline .v{font-family:var(--sans-zh);font-weight:400;font-size:calc(max(14px,1.2vw) * var(--rs,1));opacity:.85;line-height:1.55}\n  .rowline .m{font-family:var(--mono);font-size:calc(16px * var(--rs,1));letter-spacing:.2em;text-transform:uppercase;opacity:.6;justify-self:end}\n\n  /* ============ Pillar（支柱卡片） ============ */\n  .pillar{display:flex;flex-direction:column;gap:1.8vh}\n  .pillar .ic{font-family:var(--serif-en);font-style:italic;font-size:2.6vw;opacity:.45;font-weight:400}\n  .pillar .ic svg{width:2.8vw;height:2.8vw;stroke-width:1.2;opacity:.7}\n  .pillar .t{font-family:var(--serif-zh);font-weight:700;font-size:2.4vw;line-height:1.1}\n  .pillar .d{font-family:var(--sans-zh);font-weight:400;font-size:max(14px,1.1vw);opacity:.76;line-height:1.6}\n\n  /* ============ Signature / Highlight ============ */\n  .sign{font-family:var(--serif-en);font-style:italic;font-weight:500;font-size:2vw;opacity:.7}\n  .hi{position:relative;display:inline}\n  .slide.dark .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--paper-rgb),.15);z-index:-1}\n  .slide.light .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--ink-rgb),.08);z-index:-1}\n\n  /* ============ 第三色：accent 点睛强调（克制使用，仅强调数字/关键词） ============ */\n  .accent{color:var(--accent)}\n  .slide.dark .accent{color:var(--accent-ink)}\n  .accent-line{position:relative;display:inline}\n  .slide.dark .accent-line::after{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.04em;height:.16em;background:var(--accent-ink);opacity:.34;z-index:-1;border-radius:2px}\n  .slide.light .accent-line::after{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.04em;height:.16em;background:var(--accent);opacity:.22;z-index:-1;border-radius:2px}\n\n  /* ============ Icons（Lucide via CDN） ============ */\n  .ico{width:1em;height:1em;display:inline-block;vertical-align:-.12em;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}\n  .ico-lg,.ico-md,.ico-sm{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}\n  .ico-lg{width:2.6vw;height:2.6vw;stroke-width:1.2;display:inline-block}\n  .ico-md{width:1.8vw;height:1.8vw;stroke-width:1.3;display:inline-block;vertical-align:-.4em}\n  .ico-sm{width:1.1vw;height:1.1vw;stroke-width:1.4;display:inline-block;vertical-align:-.15em;opacity:.7}\n\n  /* ============ 图片占位（虚线框，提示设计师位置） ============ */\n  .img-slot{border:1.5px dashed rgba(127,127,127,.4);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1vh;padding:2vh 2vw;font-family:var(--mono);font-size:10px;letter-spacing:.28em;text-transform:uppercase;opacity:.55;position:relative;aspect-ratio:16/9;width:100%;max-height:56vh;margin-inline:auto;box-sizing:border-box}\n  .img-slot::before{content:"";position:absolute;inset:8px;border:1px solid currentColor;opacity:.2}\n  .img-slot .plus{font-size:2vw;font-weight:300;opacity:.5;letter-spacing:0}\n  .img-slot .label{position:relative;z-index:2;text-align:center}\n  .img-slot.r-4x3{aspect-ratio:4/3}\n  .img-slot.r-3x2{aspect-ratio:3/2}\n  .img-slot.r-1x1{aspect-ratio:1/1}\n\n  /* ============ 图片实填框（关键：固定高度 + 只裁底部） ============\n     重要约束：高度用内联 height:Nvh 精确控制，不要用 aspect-ratio（会撑破布局）\n     object-position:top center 保证严禁裁剪顶部和左右，只裁剪底部\n  */\n  .frame-img{overflow:hidden;position:relative;background:rgba(0,0,0,.04);box-sizing:border-box;width:100%;border-radius:4px}\n  .slide.dark .frame-img{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}\n  .frame-img > img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}\n  .frame-img.fit-contain > img{object-fit:contain;object-position:center center}\n  .frame-img.r-16x9{aspect-ratio:16/9;max-height:64vh}\n  .frame-img.r-16x10{aspect-ratio:16/10;max-height:56vh}\n  .frame-img.r-4x3{aspect-ratio:4/3;max-height:56vh}\n  .frame-img.r-3x2{aspect-ratio:3/2;max-height:46vh}\n  .frame-img.r-3x4{aspect-ratio:3/4;max-height:60vh}\n  .frame-img.r-1x1{aspect-ratio:1/1;max-height:50vh}\n  .frame-img.h-16{height:16vh}\n  .frame-img.h-18{height:18vh}\n  .frame-img.h-22{height:22vh}\n  .frame-img.h-26{height:26vh}\n  .frame-img.h-28{height:28vh}\n  .frame-cap{display:flex;justify-content:space-between;align-items:baseline;gap:1vw;margin-top:.8vh;font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.72}\n  .frame-cap .pf{font-family:var(--serif-zh);font-weight:600;font-size:max(13px,1vw);letter-spacing:.04em;text-transform:none;opacity:.94}\n  .frame-cap .nb{font-family:var(--serif-en);font-style:italic;font-size:max(15px,1.2vw);letter-spacing:.02em;text-transform:none;opacity:.88}\n  .frame-cap .idx{font-family:var(--mono);opacity:.5}\n  /* ============ 自制示意图（离线 SVG，示意为主、不画精确边界） ============ */\n  figure.fig-svg{margin:0;display:flex;flex-direction:column;min-width:0}\n  figure.fig-svg > svg{width:100%;height:auto;max-height:58vh;display:block}\n  figure.fig-svg .svg-cap{display:flex;justify-content:space-between;align-items:baseline;gap:1vw;margin-top:.8vh;font-family:var(--yahei);font-weight:700;font-size:max(12px,.95vw);letter-spacing:.04em;opacity:.72}\n  figure.tile{display:flex;flex-direction:column;margin:0;min-width:0}\n  figure.tile > .frame-img{flex:0 0 auto}\n\n  /* ============ 导航 ============ */\n  #nav{position:fixed;left:50%;bottom:2.6vh;transform:translateX(-50%);z-index:30;display:flex;gap:10px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}\n  #nav .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);cursor:pointer;transition:all .3s ease;border:0;padding:0}\n  #nav .dot:hover{background:rgba(255,255,255,.5);transform:scale(1.15)}\n  #nav .dot.active{background:rgba(255,255,255,.95);width:22px;border-radius:999px}\n  body.light-bg #nav{background:rgba(255,255,255,.25)}\n  body.light-bg #nav .dot{background:rgba(var(--ink-rgb),.25)}\n  body.light-bg #nav .dot.active{background:rgba(var(--ink-rgb),.9)}\n  #hint{position:fixed;bottom:3vh;right:3vw;z-index:30;font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.4;mix-blend-mode:difference;color:#aaa}\n  body.low-power #hint{opacity:.72;color:var(--paper);mix-blend-mode:normal}\n  body.light-bg.low-power #hint{color:var(--ink)}\n\n  /* ============================================================\n     ============ LAYOUTS API · 面向 agent 的类（v2）============\n     所有 layouts.md 中的骨架都基于下面这套命名。\n     如果你在 layouts.md 里看到某个类，它必须在下面有定义。\n     ============================================================ */\n\n  /* ---------- .frame：每页主内容容器 ---------- */\n  .frame{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;justify-content:flex-start;padding-top:3vh}\n  /* 离散纵向开关 - 纵向:顶/中/底；规则线 - 规则线:是（仅居左）；L05图底对齐 img-bottom */\n  .frame.v-top{justify-content:flex-start}\n  .frame.v-mid{justify-content:center}\n  .frame.v-bottom{justify-content:flex-end}\n  .frame.rule-accent::before{content:"";width:6vw;height:3px;background:var(--accent);margin-bottom:3.4vh;flex:0 0 auto;align-self:flex-start}\n  .slide.dark .frame.rule-accent::before{background:var(--accent-ink)}\n  .frame.img-bottom>figure,.frame.img-bottom>.img-slot{align-self:end}\n  /* 当 .frame 同时加了 grid 类时，grid 的 display:grid 覆盖 flex */\n  .frame.grid-2-7-5,\n  .frame.grid-2-6-6,\n  .frame.grid-2-8-4,\n  .frame.grid-3-3,\n  .frame.grid-6{display:grid}\n\n  /* ---------- 标题层级（API 名称，衬线为主） ---------- */\n  .h-hero{\n    font-family:var(--serif-zh);\n    font-weight:900;\n    font-size:10vw;\n    line-height:.96;\n    letter-spacing:-.02em;\n  }\n  .h-xl{\n    font-family:var(--serif-zh);\n    font-weight:700;\n    font-size:6.2vw;\n    line-height:1.08;\n    letter-spacing:-.01em;\n  }\n  .h-sub{\n    font-family:var(--serif-zh);\n    font-weight:500;\n    font-size:3.1vw;\n    line-height:1.25;\n    letter-spacing:0;\n    opacity:.7;\n  }\n  .h-md{\n    font-family:var(--serif-zh);\n    font-weight:600;\n    font-size:2.3vw;\n    line-height:1.3;\n  }\n  /* 英文标题专用（Playfair 衬线） */\n  .h-hero-en,.h-xl-en{font-family:var(--serif-en);letter-spacing:-.025em}\n\n  /* ---------- lead 引语 ---------- */\n  .lead{\n    font-family:var(--serif-zh);\n    font-weight:400;\n    font-size:1.75vw;\n    line-height:1.5;\n    opacity:.86;\n  }\n\n  /* ---------- meta-row 底部元数据 ---------- */\n  .meta-row{\n    display:flex;\n    gap:1.2em;\n    align-items:baseline;\n    flex-wrap:wrap;\n    font-family:var(--yahei);\n    font-weight:700;\n    font-size:max(13px,1vw);\n    letter-spacing:.05em;\n    opacity:.72;\n  }\n\n  /* ---------- stat-card（数据大字报用） ---------- */\n  .stat-card{\n    display:flex;\n    flex-direction:column;\n    gap:.8vh;\n    align-items:flex-start;\n    padding-top:1.6vh;\n    border-top:1px solid currentColor;\n    border-color:rgba(127,127,127,.3);\n    min-height:0;\n  }\n  .stat-card .stat-label{\n    font-family:var(--mono);\n    font-size:max(10px,.78vw);\n    letter-spacing:.24em;\n    text-transform:uppercase;\n    opacity:.55;\n  }\n  .stat-card .stat-nb{\n    font-family:var(--serif-en);\n    font-weight:800;\n    font-size:5.8vw;\n    line-height:.9;\n    letter-spacing:-.03em;\n    font-feature-settings:"tnum";\n    margin-top:.4vh;\n  }\n  .stat-card .stat-nb .stat-unit{\n    font-family:var(--serif-zh);\n    font-weight:500;\n    font-size:.38em;\n    letter-spacing:0;\n    opacity:.72;\n    margin-left:.14em;\n  }\n  .stat-card .stat-note{\n    font-family:var(--sans-zh);\n    font-weight:400;\n    font-size:max(13px,1.05vw);\n    line-height:1.5;\n    opacity:.72;\n    margin-top:.6vh;\n  }\n  /* 当 stat-card 用于 grid-4（2x2），数字适度放大；若页面有标题+引文在上方，可内联 style 覆盖为更小值 */\n  .grid-4 .stat-card .stat-nb{font-size:min(7.5vw,9vh)}\n  /* 当只有 3 个，字也可以稍大 */\n  .grid-3 .stat-card .stat-nb{font-size:min(6.8vw,9.5vh)}\n  .grid-2 .stat-card .stat-nb{font-size:min(7vw,12vh)}\n\n  /* ---------- pipeline（流水线） ---------- */\n  .pipeline-section{\n    margin-top:4.4vh;\n    padding-top:2.8vh;\n    border-top:1px dashed rgba(127,127,127,.32);\n  }\n  .pipeline-section:first-of-type{\n    border-top:0;\n    padding-top:0;\n    margin-top:3vh;\n  }\n  .pipeline-label{\n    font-family:var(--mono);\n    font-size:max(11px,.85vw);\n    letter-spacing:.24em;\n    text-transform:uppercase;\n    opacity:.62;\n    margin-bottom:2.2vh;\n  }\n  .pipeline{\n    display:grid;\n    grid-template-columns:repeat(5,1fr);\n    gap:1.2vw;\n  }\n  .pipeline[data-cols="3"]{grid-template-columns:repeat(3,1fr)}\n  .pipeline[data-cols="4"]{grid-template-columns:repeat(4,1fr)}\n  .pipeline[data-cols="6"]{grid-template-columns:repeat(6,1fr)}\n  .step{\n    display:flex;\n    flex-direction:column;\n    gap:.8vh;\n    padding-top:1.4vh;\n    border-top:1px solid currentColor;\n    border-color:rgba(127,127,127,.35);\n  }\n  .step-nb{\n    font-family:var(--serif-en);\n    font-style:italic;\n    font-weight:500;\n    font-size:1.15vw;\n    opacity:.45;\n  }\n  .step-title{\n    font-family:var(--sans-zh);\n    font-weight:700;\n    font-size:1.55vw;\n    letter-spacing:.01em;\n    line-height:1.2;\n  }\n  .step-desc{\n    font-family:var(--sans-zh);\n    font-weight:400;\n    font-size:max(12px,.95vw);\n    line-height:1.45;\n    opacity:.72;\n  }\n\n  /* ---------- 网格（layouts.md 所用） ---------- */\n  /* 这些类独立挂到任何容器上都能生效，不依赖 .frame 复合选择器 */\n  .grid-2-7-5{display:grid;grid-template-columns:7fr 5fr;gap:3vw 4vh;align-items:start}\n  .grid-2-6-6{display:grid;grid-template-columns:1fr 1fr;gap:3vw 4vh;align-items:start}\n  .grid-2-8-4{display:grid;grid-template-columns:8fr 4fr;gap:3vw 4vh;align-items:start}\n  .grid-3-3{\n    display:grid;\n    grid-template-columns:repeat(3,1fr);\n    grid-auto-rows:minmax(0,1fr);\n    gap:2.4vh 2vw;\n  }\n  /* grid-6 已在旧样式里定义为 3x2，这里仅补 align */\n\n  /* ---------- 图片 frame-img（layouts.md 主命名） ---------- */\n  /* 在旧样式里已定义，这里补 img-cap 命名别名与增强 */\n  figure.frame-img{margin:0;display:flex;flex-direction:column;min-width:0}\n  .img-cap{\n    display:block;\n    margin-top:.8vh;\n    font-family:var(--mono);\n    font-size:max(10px,.8vw);\n    letter-spacing:.22em;\n    text-transform:uppercase;\n    opacity:.6;\n  }\n  /* callout src 命名别名 */\n  .callout-src{\n    display:block;\n    margin-top:1.8vh;\n    font-family:var(--yahei);\n    font-weight:700;\n    font-size:max(13px,1.04vw);\n    letter-spacing:.04em;\n    opacity:.72;\n  }\n\n  /* ---------- chrome & foot 补位（layouts.md 简单写法） ---------- */\n\n\n\n  /* ============ 动效系统(Motion One 驱动) ============\n     所有 [data-anim] 元素默认隐藏,进入页面时由 JS 逐个揭示。\n     - cascade(默认):按 DOM 顺序 stagger 120ms 淡入 + y:16→0\n     - hero(hero 页自动):慢一点的 stagger 180ms\n     - quote(含 [data-anim="line"]):逐行 600ms 淡入\n     - directional(含 [data-anim="left|right"]):左→分隔线→右\n     - pipeline(data-animate="pipeline"):Space/→ 手动推进\n     Motion One 没加载成功时(CDN 断 + 本地丢),所有 [data-anim] 会兜底显示。\n  */\n  [data-anim]{opacity:1}\n  body.motion-ready [data-anim]{opacity:0}\n  body.motion-ready [data-anim="left"]{transform:translateX(-24px)}\n  body.motion-ready [data-anim="right"]{transform:translateX(24px)}\n  body.motion-ready [data-anim="line"]{opacity:0;transform:translateY(10px)}\n  body.motion-ready [data-animate="pipeline"] [data-anim="step"]{opacity:.15}\n  body.low-power #deck{transition:none!important}\n  body.low-power *,\n  body.low-power *::before,\n  body.low-power *::after{animation:none!important;transition:none!important}\n  body.low-power.motion-ready [data-anim],\n  body.low-power [data-anim]{opacity:1!important;transform:none!important}\n\n  /* ---------- 响应式降级 ---------- */\n  @media (max-width:900px){\n    .display{font-size:16vw}\n    .display-zh{font-size:12vw}\n    .h1-zh{font-size:7vw}\n    .h-hero{font-size:14vw}\n    .h-xl{font-size:9vw}\n    .pipeline{grid-template-columns:repeat(2,1fr)}\n    .grid-2-7-5,.grid-2-6-6,.grid-2-8-4{grid-template-columns:1fr}\n  }\n'
+_CSS = '\n  :root{\n    /* ============ 主题色（此处为兜底默认值；渲染时按 `- 主题:` / --theme 整体覆盖） ============\n       切换主题:改本文件 THEMES 预设,或渲染时 --theme=<名>(build() 会整体覆盖注入 :root)\n       整体替换这几行(--ink / --ink-rgb / --paper / --paper-rgb)\n       其他地方散落的 rgba() 都走 var(--ink-rgb) / var(--paper-rgb),无需逐处改 */\n    --ink:#2a1e13;\n    --ink-rgb:42,30,19;\n    --paper:#eedfc7;\n    --paper-rgb:238,223,199;\n    --paper-tint:#e0d0b6;\n    --ink-tint:#3a2a1d;\n\n    /* ============ 字体(跨主题固定) ============ */\n    --mono:"IBM Plex Mono",ui-monospace,monospace;\n    --serif-en:"Playfair Display","Source Serif 4",Georgia,serif;\n    --serif-body-en:"Source Serif 4",Georgia,serif;\n    --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;\n    --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;\n    /* 中文无衬线（页眉/页脚/小字用，粗体） */\n    --yahei:"Microsoft YaHei","微软雅黑",var(--sans-zh),sans-serif;\n    /* 第三色：accent 点睛强调色（克制使用；色值随主题，非恒定红） */\n    --accent:#a8331f;        /* light 页上的强调色（兜底值，渲染时被主题覆盖） */\n    --accent-ink:#d65436;    /* dark 页上的强调色（更亮保可读；兜底值，被主题覆盖） */\n  }\n  *{box-sizing:border-box;margin:0;padding:0}\n  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:var(--sans-zh);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\n\n  /* ============ WebGL 双背景 ============ */\n  canvas.bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;transition:opacity 1.2s ease}\n  canvas#bg-light{opacity:0}\n  canvas#bg-dark{opacity:1}\n  body.light-bg canvas#bg-light{opacity:1}\n  body.light-bg canvas#bg-dark{opacity:0}\n  body.low-power canvas.bg{display:none!important}\n\n  /* ============ Deck 容器 + 翻页 ============ */\n  /* width: NSLIDES * 100vw，会在 JS 里动态矫正 */\n  #deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .9s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}\n  .slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;padding:6vh 6vw 10vh 6vw;display:flex;flex-direction:column;overflow:hidden}\n  .slide.light{color:var(--ink);background:var(--paper)}\n  .slide.dark{color:var(--paper);background:var(--ink)}\n\n  /* 默认页：遮罩较厚，保证文字可读 */\n  .slide::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;transition:background .7s ease}\n  .slide.light::before{background:rgba(var(--paper-rgb),.78);backdrop-filter:blur(3px)}\n  .slide.dark::before{background:rgba(var(--ink-rgb),.78);backdrop-filter:blur(3px)}\n  /* Hero 页：遮罩大幅降低，让 WebGL 背景明显透出 */\n  .slide.hero.light::before{background:rgba(var(--paper-rgb),.16);backdrop-filter:none}\n  .slide.hero.dark::before{background:rgba(var(--ink-rgb),.12);backdrop-filter:none}\n  /* Hero 页顶底微弱渐隐，保证 chrome/foot 区域可读 */\n  .slide.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none}\n  .slide.hero.light::after{background:linear-gradient(180deg,rgba(var(--paper-rgb),.28) 0%,rgba(var(--paper-rgb),0) 14%,rgba(var(--paper-rgb),0) 86%,rgba(var(--paper-rgb),.28) 100%)}\n  .slide.hero.dark::after{background:linear-gradient(180deg,rgba(var(--ink-rgb),.32) 0%,rgba(var(--ink-rgb),0) 14%,rgba(var(--ink-rgb),0) 86%,rgba(var(--ink-rgb),.32) 100%)}\n\n  /* ============ Magazine chrome：顶部 meta + 底部 foot ============ */\n  /* 2026-09-04 收敛：原 .chrome 在下文「chrome & foot 补位」段被二次定义（后者胜）。\n     已合并为一条，取层叠后的最终值：font-family/size/letter-spacing/opacity/text-transform 用补位段，\n     布局属性（display/justify-content/align-items/font-weight）用本段。 */\n  .chrome{display:flex;justify-content:space-between;align-items:flex-start;font-family:var(--mono);font-weight:700;font-size:max(11px,.78vw);letter-spacing:.2em;text-transform:uppercase;opacity:.62}\n  .chrome .left,.chrome .right{display:flex;gap:2.4em;align-items:center}\n  .chrome .sep{width:40px;height:1px;background:currentColor;opacity:.4}\n  /* 2026-09-04 收敛：原 .foot 在下文「chrome & foot 补位」段被二次定义（后者胜）。\n     已合并为一条，取层叠后的最终值：字体/字距/opacity 用补位段，布局属性用本段。 */\n  .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;font-family:var(--mono);font-weight:700;font-size:max(11px,.78vw);letter-spacing:.18em;text-transform:uppercase;opacity:.5}\n  .foot .title{font-family:var(--yahei);font-weight:700;letter-spacing:.04em;text-transform:none;opacity:.78;font-size:max(13px,1vw)}\n\n  .tag{display:inline-block;font-family:var(--yahei);font-weight:700;font-size:max(12px,.92vw);letter-spacing:.08em;padding:6px 14px;border:1px solid currentColor;opacity:.85}\n  .rule{width:100%;height:1px;background:currentColor;opacity:.25;margin:3vh 0}\n  .rule.v{width:1px;height:100%;margin:0}\n\n  /* ============ 字体规则 ============\n     · 衬线（Noto Serif SC / Playfair）：大标题、重点金句、数字\n     · 非衬线（Noto Sans SC）：正文描述、body、补充说明\n     · 等宽（IBM Plex Mono）：kicker、meta 小标签、foot 右侧\n  */\n  .kicker{font-family:var(--yahei);font-weight:700;--fs-kick:max(14px,1.08vw);font-size:calc(var(--fs-kick) * var(--sc-kick,1));letter-spacing:.06em;opacity:.74;margin-bottom:2.6vh}\n  .display{font-family:var(--serif-en);font-weight:700;font-size:11vw;line-height:.92;letter-spacing:-.025em}\n  .display-zh{font-family:var(--serif-zh);font-weight:700;font-size:7.8vw;line-height:1.04;letter-spacing:-.005em}\n  .h1-zh{font-family:var(--serif-zh);font-weight:700;font-size:4.6vw;line-height:1.12;letter-spacing:-.005em}\n  .h2-zh{font-family:var(--serif-zh);font-weight:600;font-size:3.2vw;line-height:1.2;letter-spacing:0}\n  .h3-zh{font-family:var(--serif-zh);font-weight:500;font-size:1.9vw;line-height:1.35}\n  .body-zh{font-family:var(--sans-zh);font-weight:400;--fs-body:max(15px,1.22vw);font-size:calc(var(--fs-body) * var(--sc-body,1));line-height:1.75;opacity:.82;letter-spacing:.01em}\n  .body-serif{font-family:var(--serif-zh);font-weight:400;font-size:max(15px,1.3vw);line-height:1.65;opacity:.88}\n  /* 2026-09-04 收敛：.lead 曾在下文「LAYOUTS API · lead 引语」段二次定义（后者胜）。\n     已去重，仅保留最终值（font-size:1.75vw / line-height:1.5 / opacity:.86）。 */\n  .meta{font-family:var(--mono);font-size:max(11px,.88vw);letter-spacing:.16em;text-transform:uppercase;opacity:.6}\n  .big-num{font-family:var(--serif-en);font-weight:800;font-size:10vw;line-height:.85;letter-spacing:-.03em;font-feature-settings:"tnum"}\n  .mid-num{font-family:var(--serif-en);font-weight:700;font-size:5.5vw;line-height:.88;letter-spacing:-.02em;font-feature-settings:"tnum"}\n  .ghost{font-family:var(--serif-en);font-weight:900;font-size:34vw;line-height:.8;opacity:.06;letter-spacing:-.04em;position:absolute;font-feature-settings:"tnum"}\n  em{font-style:italic;font-family:var(--serif-en)}\n  .en{font-family:var(--serif-en);font-style:italic;font-weight:500}\n\n  /* ============ 布局工具 ============ */\n  .col{display:flex;flex-direction:column;gap:2.4vh}\n  .row{display:flex;align-items:center;gap:3vw}\n  .grid-6{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:4vw 6vw;flex:1;align-content:center;padding:2vh 0}\n  .grid-9{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3vh 4vw;flex:1;align-content:center}\n  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:auto;gap:4vh 6vw;flex:1;align-content:center}\n  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:4vw;flex:1;align-content:center}\n  .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:4vw 6vw;flex:1;align-content:center}\n  .split{display:grid;grid-template-columns:1fr 1fr;gap:4vw;flex:1;align-items:start}\n  .split-55{display:grid;grid-template-columns:55fr 45fr;gap:5vw;flex:1;align-items:stretch}\n  .fill{flex:1}\n  .center{align-items:center;justify-content:center;text-align:center}\n  .bottom-left{position:absolute;left:6vw;bottom:9vh;max-width:50vw}\n  .bottom-right{position:absolute;right:6vw;bottom:9vh;max-width:50vw;text-align:right}\n  .top-right{position:absolute;right:6vw;top:6vh;text-align:right}\n\n  /* ============ Stat（数字矩阵） ============ */\n  .stat{display:flex;flex-direction:column;gap:1vh;align-items:flex-start}\n  .stat .n{font-family:var(--serif-en);font-weight:800;font-size:8vw;line-height:.88;letter-spacing:-.03em;font-feature-settings:"tnum"}\n  .stat .l{font-family:var(--sans-zh);font-size:max(13px,1.05vw);opacity:.7;margin-top:1vh;font-weight:400;line-height:1.5}\n  .stat .m{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.5;margin-bottom:.2vh}\n\n  /* ============ Callout（引用框） ============ */\n  .callout{padding:3vh 2.4vw;border-left:3px solid currentColor;position:relative;font-family:var(--serif-zh);font-size:max(15px,1.2vw);line-height:1.55;opacity:.92}\n  .slide.light .callout{background:rgba(var(--ink-rgb),.05)}\n  .slide.dark .callout{background:rgba(var(--paper-rgb),.06)}\n  .callout .cite{display:block;margin-top:1.6vh;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6}\n  .q-big{font-family:var(--serif-zh);font-weight:700;--fs-q:max(22px,2.8vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.35;text-align:center}\n  .callout .q-big{font-family:var(--serif-zh);font-weight:600;--fs-q:max(17px,1.6vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.42}\n\n  /* ============ Platform（平台卡） ============ */\n  .plat{display:flex;flex-direction:column;justify-content:flex-end;padding:2vh 0;border-top:1px solid currentColor;border-color:rgba(127,127,127,.35)}\n  .plat .name{font-family:var(--serif-zh);font-weight:700;font-size:1.8vw;margin-bottom:.6vh}\n  .plat .nb{font-family:var(--serif-en);font-weight:700;font-size:3.2vw;letter-spacing:-.02em;line-height:1;font-feature-settings:"tnum"}\n  .plat .sub{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;margin-top:.6vh}\n  .plat .fill{font-family:var(--sans-zh);font-weight:300;font-size:2.4vw;opacity:.28;letter-spacing:-.01em;line-height:1}\n\n  /* ============ Rowline（表格行） ============ */\n  .rowline{display:grid;grid-template-columns:1fr 2fr 1fr;gap:2vw;padding:calc(2.2vh * var(--rs,1));border-top:1px solid currentColor;align-items:center;border-color:rgba(127,127,127,.25);min-height:0}\n  .rowline:last-child{border-bottom:1px solid currentColor;border-color:rgba(127,127,127,.25)}\n  .rowline .k{font-family:var(--serif-zh);font-weight:700;font-size:calc(1.7vw * var(--rs,1))}\n  .rowline .v{font-family:var(--sans-zh);font-weight:400;font-size:calc(max(14px,1.2vw) * var(--rs,1));opacity:.85;line-height:1.55}\n  .rowline .m{font-family:var(--mono);font-size:calc(16px * var(--rs,1));letter-spacing:.2em;text-transform:uppercase;opacity:.6;justify-self:end}\n\n  /* ============ Pillar（支柱卡片） ============ */\n  .pillar{display:flex;flex-direction:column;gap:1.8vh}\n  .pillar .ic{font-family:var(--serif-en);font-style:italic;font-size:2.6vw;opacity:.45;font-weight:400}\n  .pillar .ic svg{width:2.8vw;height:2.8vw;stroke-width:1.2;opacity:.7}\n  .pillar .t{font-family:var(--serif-zh);font-weight:700;font-size:2.4vw;line-height:1.1}\n  .pillar .d{font-family:var(--sans-zh);font-weight:400;font-size:max(14px,1.1vw);opacity:.76;line-height:1.6}\n\n  /* ============ Signature / Highlight ============ */\n  .sign{font-family:var(--serif-en);font-style:italic;font-weight:500;font-size:2vw;opacity:.7}\n  .hi{position:relative;display:inline}\n  .slide.dark .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--paper-rgb),.15);z-index:-1}\n  .slide.light .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--ink-rgb),.08);z-index:-1}\n\n  /* ============ 第三色：accent 点睛强调（克制使用，仅强调数字/关键词） ============ */\n  .accent{color:var(--accent)}\n  .slide.dark .accent{color:var(--accent-ink)}\n  .accent-line{position:relative;display:inline}\n  .slide.dark .accent-line::after{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.04em;height:.16em;background:var(--accent-ink);opacity:.34;z-index:-1;border-radius:2px}\n  .slide.light .accent-line::after{content:"";position:absolute;left:-.06em;right:-.06em;bottom:.04em;height:.16em;background:var(--accent);opacity:.22;z-index:-1;border-radius:2px}\n\n  /* ============ Icons（Lucide via CDN） ============ */\n  .ico{width:1em;height:1em;display:inline-block;vertical-align:-.12em;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}\n  .ico-lg,.ico-md,.ico-sm{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}\n  .ico-lg{width:2.6vw;height:2.6vw;stroke-width:1.2;display:inline-block}\n  .ico-md{width:1.8vw;height:1.8vw;stroke-width:1.3;display:inline-block;vertical-align:-.4em}\n  .ico-sm{width:1.1vw;height:1.1vw;stroke-width:1.4;display:inline-block;vertical-align:-.15em;opacity:.7}\n\n  /* ============ 图片占位（虚线框，提示设计师位置） ============ */\n  .img-slot{border:1.5px dashed rgba(127,127,127,.4);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1vh;padding:2vh 2vw;font-family:var(--mono);font-size:10px;letter-spacing:.28em;text-transform:uppercase;opacity:.55;position:relative;aspect-ratio:16/9;width:100%;max-height:56vh;margin-inline:auto;box-sizing:border-box}\n  .img-slot::before{content:"";position:absolute;inset:8px;border:1px solid currentColor;opacity:.2}\n  .img-slot .plus{font-size:2vw;font-weight:300;opacity:.5;letter-spacing:0}\n  .img-slot .label{position:relative;z-index:2;text-align:center}\n  .img-slot.r-4x3{aspect-ratio:4/3}\n  .img-slot.r-3x2{aspect-ratio:3/2}\n  .img-slot.r-1x1{aspect-ratio:1/1}\n\n  /* ============ 图片实填框（关键：固定高度 + 只裁底部） ============\n     重要约束：高度用内联 height:Nvh 精确控制，不要用 aspect-ratio（会撑破布局）\n     object-position:top center 保证严禁裁剪顶部和左右，只裁剪底部\n  */\n  .frame-img{overflow:hidden;position:relative;background:rgba(0,0,0,.04);box-sizing:border-box;width:100%;border-radius:4px}\n  .slide.dark .frame-img{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}\n  .frame-img > img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}\n  .frame-img.fit-contain > img{object-fit:contain;object-position:center center}\n  .frame-img.r-16x9{aspect-ratio:16/9;max-height:64vh}\n  .frame-img.r-16x10{aspect-ratio:16/10;max-height:56vh}\n  .frame-img.r-4x3{aspect-ratio:4/3;max-height:56vh}\n  .frame-img.r-3x2{aspect-ratio:3/2;max-height:46vh}\n  .frame-img.r-3x4{aspect-ratio:3/4;max-height:60vh}\n  .frame-img.r-1x1{aspect-ratio:1/1;max-height:50vh}\n  .frame-img.h-16{height:16vh}\n  .frame-img.h-18{height:18vh}\n  .frame-img.h-22{height:22vh}\n  .frame-img.h-26{height:26vh}\n  .frame-img.h-28{height:28vh}\n  .frame-cap{display:flex;justify-content:space-between;align-items:baseline;gap:1vw;margin-top:.8vh;font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.72}\n  .frame-cap .pf{font-family:var(--serif-zh);font-weight:600;font-size:max(13px,1vw);letter-spacing:.04em;text-transform:none;opacity:.94}\n  .frame-cap .nb{font-family:var(--serif-en);font-style:italic;font-size:max(15px,1.2vw);letter-spacing:.02em;text-transform:none;opacity:.88}\n  .frame-cap .idx{font-family:var(--mono);opacity:.5}\n  /* ============ 自制示意图（离线 SVG，示意为主、不画精确边界） ============ */\n  figure.fig-svg{margin:0;display:flex;flex-direction:column;min-width:0}\n  figure.fig-svg > svg{width:100%;height:auto;max-height:58vh;display:block}\n  figure.fig-svg .svg-cap{display:flex;justify-content:space-between;align-items:baseline;gap:1vw;margin-top:.8vh;font-family:var(--yahei);font-weight:700;font-size:max(12px,.95vw);letter-spacing:.04em;opacity:.72}\n  figure.tile{display:flex;flex-direction:column;margin:0;min-width:0}\n  figure.tile > .frame-img{flex:0 0 auto}\n\n  /* ============ 导航 ============ */\n  #nav{position:fixed;left:50%;bottom:2.6vh;transform:translateX(-50%);z-index:30;display:flex;gap:10px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}\n  #nav .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);cursor:pointer;transition:all .3s ease;border:0;padding:0}\n  #nav .dot:hover{background:rgba(255,255,255,.5);transform:scale(1.15)}\n  #nav .dot.active{background:rgba(255,255,255,.95);width:22px;border-radius:999px}\n  body.light-bg #nav{background:rgba(255,255,255,.25)}\n  body.light-bg #nav .dot{background:rgba(var(--ink-rgb),.25)}\n  body.light-bg #nav .dot.active{background:rgba(var(--ink-rgb),.9)}\n  #hint{position:fixed;bottom:3vh;right:3vw;z-index:30;font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.4;mix-blend-mode:difference;color:#aaa}\n  body.low-power #hint{opacity:.72;color:var(--paper);mix-blend-mode:normal}\n  body.light-bg.low-power #hint{color:var(--ink)}\n\n  /* ============================================================\n     ============ LAYOUTS API · 面向 agent 的类（v2）============\n     所有 layouts.md 中的骨架都基于下面这套命名。\n     如果你在 layouts.md 里看到某个类，它必须在下面有定义。\n     ============================================================ */\n\n  /* ---------- .frame：每页主内容容器 ---------- */\n  .frame{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;justify-content:flex-start;padding-top:3vh}\n  /* 离散纵向开关 - 纵向:顶/中/底；规则线 - 规则线:是（仅居左）；L05图底对齐 img-bottom */\n  .frame.v-top{justify-content:flex-start}\n  .frame.v-mid{justify-content:center}\n  .frame.v-bottom{justify-content:flex-end}\n  .frame.rule-accent::before{content:"";width:6vw;height:3px;background:var(--accent);margin-bottom:3.4vh;flex:0 0 auto;align-self:flex-start}\n  .slide.dark .frame.rule-accent::before{background:var(--accent-ink)}\n  .frame.img-bottom>figure,.frame.img-bottom>.img-slot{align-self:end}\n  /* 当 .frame 同时加了 grid 类时，grid 的 display:grid 覆盖 flex */\n  .frame.grid-2-7-5,\n  .frame.grid-2-6-6,\n  .frame.grid-2-8-4,\n  .frame.grid-3-3,\n  .frame.grid-6{display:grid}\n\n  /* ---------- 标题层级（API 名称，衬线为主） ---------- */\n  .h-hero{\n    font-family:var(--serif-zh);\n    font-weight:900;\n    --fs-hero:10vw;font-size:calc(var(--fs-hero) * var(--sc-hero,1));\n    line-height:.96;\n    letter-spacing:-.02em;\n  }\n  .h-xl{\n    font-family:var(--serif-zh);\n    font-weight:700;\n    --fs-xl:6.2vw;font-size:calc(var(--fs-xl) * var(--sc-xl,1));\n    line-height:1.08;\n    letter-spacing:-.01em;\n  }\n  .h-sub{\n    font-family:var(--serif-zh);\n    font-weight:500;\n    --fs-sub:3.1vw;font-size:calc(var(--fs-sub) * var(--sc-sub,1));\n    line-height:1.25;\n    letter-spacing:0;\n    opacity:.7;\n  }\n  .h-md{\n    font-family:var(--serif-zh);\n    font-weight:600;\n    --fs-md:2.3vw;font-size:calc(var(--fs-md) * var(--sc-md,1));\n    line-height:1.3;\n  }\n  /* 英文标题专用（Playfair 衬线） */\n  .h-hero-en,.h-xl-en{font-family:var(--serif-en);letter-spacing:-.025em}\n\n  /* ---------- lead 引语 ---------- */\n  .lead{\n    font-family:var(--serif-zh);\n    font-weight:400;\n    font-size:1.75vw;\n    line-height:1.5;\n    opacity:.86;\n  }\n\n  /* ---------- meta-row 底部元数据 ---------- */\n  .meta-row{\n    display:flex;\n    gap:1.2em;\n    align-items:baseline;\n    flex-wrap:wrap;\n    font-family:var(--yahei);\n    font-weight:700;\n    font-size:max(13px,1vw);\n    letter-spacing:.05em;\n    opacity:.72;\n  }\n\n  /* ---------- stat-card（数据大字报用） ---------- */\n  .stat-card{\n    display:flex;\n    flex-direction:column;\n    gap:.8vh;\n    align-items:flex-start;\n    padding-top:1.6vh;\n    border-top:1px solid currentColor;\n    border-color:rgba(127,127,127,.3);\n    min-height:0;\n  }\n  .stat-card .stat-label{\n    font-family:var(--mono);\n    font-size:max(10px,.78vw);\n    letter-spacing:.24em;\n    text-transform:uppercase;\n    opacity:.55;\n  }\n  .stat-card .stat-nb{\n    font-family:var(--serif-en);\n    font-weight:800;\n    font-size:5.8vw;\n    line-height:.9;\n    letter-spacing:-.03em;\n    font-feature-settings:"tnum";\n    margin-top:.4vh;\n  }\n  .stat-card .stat-nb .stat-unit{\n    font-family:var(--serif-zh);\n    font-weight:500;\n    font-size:.38em;\n    letter-spacing:0;\n    opacity:.72;\n    margin-left:.14em;\n  }\n  .stat-card .stat-note{\n    font-family:var(--sans-zh);\n    font-weight:400;\n    font-size:max(13px,1.05vw);\n    line-height:1.5;\n    opacity:.72;\n    margin-top:.6vh;\n  }\n  /* 当 stat-card 用于 grid-4（2x2），数字适度放大；若页面有标题+引文在上方，可内联 style 覆盖为更小值 */\n  .grid-4 .stat-card .stat-nb{font-size:min(7.5vw,9vh)}\n  /* 当只有 3 个，字也可以稍大 */\n  .grid-3 .stat-card .stat-nb{font-size:min(6.8vw,9.5vh)}\n  .grid-2 .stat-card .stat-nb{font-size:min(7vw,12vh)}\n\n  /* ---------- pipeline（流水线） ---------- */\n  .pipeline-section{\n    margin-top:4.4vh;\n    padding-top:2.8vh;\n    border-top:1px dashed rgba(127,127,127,.32);\n  }\n  .pipeline-section:first-of-type{\n    border-top:0;\n    padding-top:0;\n    margin-top:3vh;\n  }\n  .pipeline-label{\n    font-family:var(--mono);\n    font-size:max(11px,.85vw);\n    letter-spacing:.24em;\n    text-transform:uppercase;\n    opacity:.62;\n    margin-bottom:2.2vh;\n  }\n  .pipeline{\n    display:grid;\n    grid-template-columns:repeat(5,1fr);\n    gap:1.2vw;\n  }\n  .pipeline[data-cols="3"]{grid-template-columns:repeat(3,1fr)}\n  .pipeline[data-cols="4"]{grid-template-columns:repeat(4,1fr)}\n  .pipeline[data-cols="6"]{grid-template-columns:repeat(6,1fr)}\n  .step{\n    display:flex;\n    flex-direction:column;\n    gap:.8vh;\n    padding-top:1.4vh;\n    border-top:1px solid currentColor;\n    border-color:rgba(127,127,127,.35);\n  }\n  .step-nb{\n    font-family:var(--serif-en);\n    font-style:italic;\n    font-weight:500;\n    font-size:1.15vw;\n    opacity:.45;\n  }\n  .step-title{\n    font-family:var(--sans-zh);\n    font-weight:700;\n    font-size:1.55vw;\n    letter-spacing:.01em;\n    line-height:1.2;\n  }\n  .step-desc{\n    font-family:var(--sans-zh);\n    font-weight:400;\n    font-size:max(12px,.95vw);\n    line-height:1.45;\n    opacity:.72;\n  }\n\n  /* ---------- 网格（layouts.md 所用） ---------- */\n  /* 这些类独立挂到任何容器上都能生效，不依赖 .frame 复合选择器 */\n  .grid-2-7-5{display:grid;grid-template-columns:7fr 5fr;gap:3vw 4vh;align-items:start}\n  .grid-2-6-6{display:grid;grid-template-columns:1fr 1fr;gap:3vw 4vh;align-items:start}\n  .grid-2-8-4{display:grid;grid-template-columns:8fr 4fr;gap:3vw 4vh;align-items:start}\n  .grid-3-3{\n    display:grid;\n    grid-template-columns:repeat(3,1fr);\n    grid-auto-rows:minmax(0,1fr);\n    gap:2.4vh 2vw;\n  }\n  /* grid-6 已在旧样式里定义为 3x2，这里仅补 align */\n\n  /* ---------- 图片 frame-img（layouts.md 主命名） ---------- */\n  /* 在旧样式里已定义，这里补 img-cap 命名别名与增强 */\n  figure.frame-img{margin:0;display:flex;flex-direction:column;min-width:0}\n  .img-cap{\n    display:block;\n    margin-top:.8vh;\n    font-family:var(--mono);\n    font-size:max(10px,.8vw);\n    letter-spacing:.22em;\n    text-transform:uppercase;\n    opacity:.6;\n  }\n  /* callout src 命名别名 */\n  .callout-src{\n    display:block;\n    margin-top:1.8vh;\n    font-family:var(--yahei);\n    font-weight:700;\n    font-size:max(13px,1.04vw);\n    letter-spacing:.04em;\n    opacity:.72;\n  }\n\n  /* ---------- chrome & foot 补位（layouts.md 简单写法） ---------- */\n\n\n\n  /* ============ 动效系统(Motion One 驱动) ============\n     所有 [data-anim] 元素默认隐藏,进入页面时由 JS 逐个揭示。\n     - cascade(默认):按 DOM 顺序 stagger 120ms 淡入 + y:16→0\n     - hero(hero 页自动):慢一点的 stagger 180ms\n     - quote(含 [data-anim="line"]):逐行 600ms 淡入\n     - directional(含 [data-anim="left|right"]):左→分隔线→右\n     - pipeline(data-animate="pipeline"):Space/→ 手动推进\n     Motion One 没加载成功时(CDN 断 + 本地丢),所有 [data-anim] 会兜底显示。\n  */\n  [data-anim]{opacity:1}\n  body.motion-ready [data-anim]{opacity:0}\n  body.motion-ready [data-anim="left"]{transform:translateX(-24px)}\n  body.motion-ready [data-anim="right"]{transform:translateX(24px)}\n  body.motion-ready [data-anim="line"]{opacity:0;transform:translateY(10px)}\n  body.motion-ready [data-animate="pipeline"] [data-anim="step"]{opacity:.15}\n  body.low-power #deck{transition:none!important}\n  body.low-power *,\n  body.low-power *::before,\n  body.low-power *::after{animation:none!important;transition:none!important}\n  body.low-power.motion-ready [data-anim],\n  body.low-power [data-anim]{opacity:1!important;transform:none!important}\n\n  /* ---------- 响应式降级 ---------- */\n  @media (max-width:900px){\n    .display{font-size:16vw}\n    .display-zh{font-size:12vw}\n    .h1-zh{font-size:7vw}\n    .h-hero{--fs-hero:14vw;font-size:calc(var(--fs-hero) * var(--sc-hero,1))}\n    .h-xl{--fs-xl:9vw;font-size:calc(var(--fs-xl) * var(--sc-xl,1))}\n    .pipeline{grid-template-columns:repeat(2,1fr)}\n    .grid-2-7-5,.grid-2-6-6,.grid-2-8-4{grid-template-columns:1fr}\n  }\n'
 
 _INIT = "\n  (function(){\n    const KEY = 'eink-ppt-low-power'; /* 2026-09-04 去领域残留命名（原 guizang-ppt-low-power） */\n    const OLD_KEY = 'guizang-ppt-low-power';\n    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;\n    let stored = localStorage.getItem(KEY);\n    if (stored === null) { const _old = localStorage.getItem(OLD_KEY); if (_old !== null) { stored = _old; try { localStorage.setItem(KEY, _old); localStorage.removeItem(OLD_KEY); } catch (e) {} } }\n    window.__lowPowerMode = stored === '1' || (stored === null && reduced);\n    function updateHint(){\n      const hint = document.getElementById('hint');\n      if(hint) hint.textContent = `← → 翻页 · B ${window.__lowPowerMode ? '动态' : '静态'} · ESC 索引`;\n    }\n    window.__setLowPowerMode = function(on, opts={}){\n      window.__lowPowerMode = !!on;\n      document.body.classList.toggle('low-power', window.__lowPowerMode);\n      if(opts.persist !== false) localStorage.setItem(KEY, window.__lowPowerMode ? '1' : '0');\n      if(window.__lowPowerMode && document.getAnimations){\n        document.getAnimations().forEach(a=>a.cancel());\n      }\n      updateHint();\n      dispatchEvent(new CustomEvent('ppt-low-power-change', {detail:{on:window.__lowPowerMode}}));\n      if(window.__playSlide) window.__playSlide(window.__currentSlideIndex || 0);\n    };\n    document.body.classList.toggle('low-power', window.__lowPowerMode);\n    addEventListener('DOMContentLoaded', updateHint, {once:true});\n  })();\n"
 
@@ -703,6 +703,71 @@ document.querySelectorAll('a.ilink').forEach(a=>{
 });
 '''
 
+# 背景音乐播放控制：仅当大纲写了音乐字段才由 build() 插入，不写时产物字节完全不变。
+# 浏览器硬规则：首次用户手势前 play() 必被拒；本脚本只挂一次性解锁，不伪造 autoplay。
+# 页级换曲：go() 切页时派发 eink-slide-change（仅写音乐时才注入钩子），本脚本按 plan 换 src；
+# plan[i] = -1 表示该页静音，未写音乐的页沿用上一页（由渲染层算好 plan）。
+_BGM_JS = r"""<script>
+(function(){
+  var a = document.getElementById('eink-bgm');
+  if(!a) return;
+  var tracks = __EINK_BGM_TRACKS__;
+  var plan = __EINK_BGM_PLAN__;
+  var muted = false;
+  function cur(){ return window.__currentSlideIndex || 0; }
+  function isOff(){ var t = plan[cur()]; return !(t >= 0 && tracks[t]); }
+  function hint(){
+    var h = document.getElementById('hint');
+    if(!h) return;
+    h.textContent = h.textContent.replace(/\s*·\s*(?:M [^·]*|本页静音)/g, '')
+      + ' · M ' + (muted ? '音乐关' : '音乐开') + (isOff() ? ' · 本页静音' : '');
+  }
+  function play(){
+    if(muted || window.__lowPowerMode || isOff()) return;
+    var p = a.play();
+    if(p && p.catch) p.catch(function(){});
+  }
+  function apply(){
+    var t = plan[cur()];
+    if(!(t >= 0 && tracks[t])){ a.pause(); hint(); return; }
+    var tr = tracks[t];
+    if(a.getAttribute('src') !== tr.src) a.src = tr.src;
+    a.volume = Math.max(0, Math.min(1, parseFloat(tr.volume) || 0));
+    if(unlock.done) play();
+    hint();
+  }
+  var gestures = ['pointerdown','keydown','touchstart'];
+  function unlock(){
+    if(unlock.done) return;
+    unlock.done = true;
+    gestures.forEach(function(ev){ removeEventListener(ev, unlock); });
+    apply();
+    play();
+    hint();
+  }
+  unlock.done = false;
+  gestures.forEach(function(ev){ addEventListener(ev, unlock, {once:true}); });
+  window.__einkBgmToggle = function(){
+    muted = !muted;
+    if(muted) a.pause(); else if(unlock.done) apply();
+    hint();
+  };
+  addEventListener('keydown', function(e){
+    if(e.key && e.key.toLowerCase()==='m' && !e.metaKey && !e.ctrlKey && !e.altKey){
+      e.preventDefault();
+      window.__einkBgmToggle();
+    }
+  });
+  addEventListener('eink-slide-change', apply);
+  addEventListener('ppt-low-power-change', function(e){
+    if(!e.detail || e.detail.on) a.pause(); else apply();
+  });
+  addEventListener('DOMContentLoaded', apply);
+  addEventListener('ppt-low-power-change', hint);
+})();
+</script>
+"""
+
 # 追加样式（底座没有的新版式 / 增强；符合规范 §0/§2）
 _CSS_EXTRA = """
 /* ===== 双基线布局：标题区固定预留两行高，正文从固定行线起向下生长 =====
@@ -731,9 +796,8 @@ _CSS_EXTRA = """
 .head-block{flex:0 0 auto;min-height:var(--head-h,22vh);display:flex;flex-direction:column}
 .head-block.head-1{justify-content:center}      /* 一行标题：区内上下居中，不贴眉标 */
 .head-block.head-2{justify-content:flex-start} /* 两行标题：顶对齐、上下分布填满 */
-.h-xl{font-size:5.4vw}                          /* 内页标题统一 5.4vw（覆盖底座 6.2vw） */
-.h-xl-line{font-size:5.4vw}
-.frame[class*="grid-2"]>.col .h-xl,.frame[class*="grid-2"]>.col .h-xl-line{font-size:clamp(24px,4.5vw,68px);line-height:1.1}
+.h-xl{--fs-xl:5.4vw;font-size:calc(var(--fs-xl) * var(--sc-xl,1))}                          /* 内页标题统一 5.4vw（覆盖底座 6.2vw） */
+.frame[class*="grid-2"]>.col .h-xl,.frame[class*="grid-2"]>.col .h-xl-line{--fs-xl:clamp(24px,4.5vw,68px);font-size:calc(var(--fs-xl) * var(--sc-xl,1));line-height:1.1}
 /* L16 文字标牌 stat-note：中文描述放大居中（接近 stat-card 但不带数字；优化意见(一)5） */
 .stat-note-l16{font-family:var(--sans-zh);font-weight:400;font-size:clamp(17px,2vw,34px);line-height:1.6;text-align:left;color:var(--ink);opacity:.82;padding-left:1.4vw;border-left:2px solid var(--paper-tint);margin-bottom:1.2vh;}
 /* dark 主题（accent 暗页）覆盖：否则深墨字落在深底上完全看不见（修复深色页 notes 不可见） */
@@ -743,9 +807,9 @@ _CSS_EXTRA = """
 .slide.dark .stat-note-l16.accent-note{color:var(--accent-ink);}
 
 /* L07 金句三段字号（长句更可读、短句更醒目；D 规划 P0） */
-.q-big.q-short{font-size:max(26px,5.2vw);line-height:1.32;}
-.q-big.q-long{font-size:max(20px,4.2vw);line-height:1.46;}
-.q-big.q-std{font-size:max(22px,2.8vw);line-height:1.4;}
+.q-big.q-short{--fs-q:max(26px,5.2vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.32;}
+.q-big.q-long{--fs-q:max(20px,4.2vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.46;}
+.q-big.q-std{--fs-q:max(22px,2.8vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.4;}
 
 /* ===== L24 论断陈述（吸收 S03 之魂：一句核心判断；但用中文衬线粗体+强左轴+大留白+发丝线，
    不用瑞士 weight-200 在牛皮纸上显弱。承载「单句强判断」场景，与 L16 降级版分工） ===== */
@@ -795,7 +859,7 @@ _CSS_EXTRA = """
 /* 标题：横幅模式 = 居左悬浮纸色小块，浮于图上（不再通栏压底切断图） */
 .ih-title-l27{position:absolute;left:4vw;top:8.5vh;z-index:4;max-width:46vw;background:var(--paper);padding:2.4vh 2.1vw;}
 .ih-title-l27 .kicker{margin-bottom:.7vh;color:var(--ink);opacity:.6;}
-.ih-title-l27 .h-xl{font-size:clamp(20px,2.8vw,44px);line-height:1.14;color:var(--ink);}
+.ih-title-l27 .h-xl{--fs-xl:clamp(20px,2.8vw,44px);font-size:calc(var(--fs-xl) * var(--sc-xl,1));line-height:1.14;color:var(--ink);}
 .ih-bottom-l27{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2.2vh;padding:3vh 6vw 4vh;min-height:0;}
 .ih-cap-l27{font-family:var(--sans-zh);font-size:max(13px,1.05vw);opacity:.8;line-height:1.65;max-width:62vw;}
 .ih-kpis-l27{display:grid;grid-template-columns:repeat(3,1fr);gap:3vw;}
@@ -814,7 +878,7 @@ _CSS_EXTRA = """
 .imagehero-l27.side .ih-side-l27{flex:1;}
 .imagehero-l27.side .ih-title-l27{position:static;max-width:none;background:none;padding:3.6vh 4vw 0;}
 .imagehero-l27.side .ih-title-l27 .kicker{color:inherit;}
-.imagehero-l27.side .ih-title-l27 .h-xl{color:inherit;font-size:clamp(22px,3.2vw,50px);}
+.imagehero-l27.side .ih-title-l27 .h-xl{color:inherit;--fs-xl:clamp(22px,3.2vw,50px);font-size:calc(var(--fs-xl) * var(--sc-xl,1));}
 .imagehero-l27.side .ih-bottom-l27{padding:2vh 4vw 4vh;justify-content:flex-start;}
 /* side 模式隐藏右上讲题（右侧为主题底，白字会不可见），仅留 M01 白字浮图左上 */
 .slide:has(.imagehero-l27.side) .chrome > div:last-child{display:none;}
@@ -826,10 +890,10 @@ _CSS_EXTRA = """
 .slide.dark .body-fixed{color:var(--paper);}
 /* M11 引文作为固定元件（非 standalone callout 页时，底部挂引文框） */
 .callout-fixed{font-family:var(--serif-zh);border-left:3px solid var(--accent);padding:.4vh 0 .4vh 1.2vw;max-width:62vw;}
-.callout-fixed .q-big{font-size:max(17px,1.6vw);line-height:1.5;font-weight:600;}
+.callout-fixed .q-big{--fs-q:max(17px,1.6vw);font-size:calc(var(--fs-q) * var(--sc-q,1));line-height:1.5;font-weight:600;}
 .callout-fixed .callout-src{display:block;margin-top:1vh;font-family:var(--sans-zh);font-size:max(12px,.95vw);opacity:.6;}
 /* M16 参考链接框（页面级，底部 slide-aux；新标签打开，accent 描边） */
-.links-fixed{display:flex;align-items:baseline;flex-wrap:wrap;gap:.5em 1.4em;max-width:74vw;border-top:1px dashed var(--accent);padding-top:1.2vh;margin-top:2.4vh;font-family:var(--sans-zh);opacity:.9;}
+.links-fixed{display:flex;align-items:baseline;flex-wrap:wrap;gap:.5em 1.4em;max-width:74vw;--fs-link:max(14px,1.05vw);font-size:calc(var(--fs-link) * var(--sc-link,1));border-top:1px dashed var(--accent);padding-top:1.2vh;margin-top:2.4vh;font-family:var(--sans-zh);opacity:.9;}
 .links-fixed .links-h{font-family:var(--yahei);font-weight:700;font-size:max(12px,.95vw);letter-spacing:.1em;color:var(--accent);white-space:nowrap;}
 .slide.dark .links-fixed .links-h{color:var(--accent-ink);}
 .links-fixed .links-list{display:flex;flex-direction:column;gap:.5vh;flex:1;}
@@ -838,9 +902,9 @@ _CSS_EXTRA = """
 .slide.dark .ilink{color:var(--accent-ink);}
 .ilink-text{opacity:.78;}
 /* M13 注释（页面级小注） */
-.annot{font-family:var(--sans-zh);font-size:max(13px,1vw);opacity:.6;line-height:1.6;max-width:64vw;border-top:1px dashed currentColor;padding-top:1vh;margin-top:2.4vh;}
+.annot{font-family:var(--sans-zh);--fs-annot:max(13px,1vw);font-size:calc(var(--fs-annot) * var(--sc-annot,1));opacity:.6;line-height:1.6;max-width:64vw;border-top:1px dashed currentColor;padding-top:1vh;margin-top:2.4vh;}
 /* M14 下标/出处（默认右对齐，可在大纲用 M14 对齐: 左/中/右 调整） */
-.footnote{font-family:var(--sans-zh);font-size:max(12px,.95vw);opacity:.62;margin-top:2.4vh;}
+.footnote{font-family:var(--sans-zh);--fs-foot:max(12px,.95vw);font-size:calc(var(--fs-foot) * var(--sc-foot,1));opacity:.62;margin-top:2.4vh;}
 .footnote.left{text-align:left;} .footnote.center{text-align:center;} .footnote.right{text-align:right;}
 /* 设计指令占位（引擎按「设计:」标记渲染，待我按描述生成真实 SVG/版式后替换） */
 .design-note{font-family:var(--sans-zh);font-size:max(13px,1vw);opacity:.78;border:1px dashed var(--accent);border-radius:6px;padding:2vh 2vw;  margin-top:3vh;max-width:66vw;color:var(--ink);line-height:1.7;}
@@ -860,11 +924,26 @@ _CSS_EXTRA = """
 .body-zh.size-lg{font-size:max(19px,1.5vw);}
 .body-zh.size-sm{font-size:max(12px,1vw);}
 /* ===== M06 两行 hero：逐行（居左/居右 等） ===== */
-.h-hero-line{font-family:var(--serif-zh);font-weight:800;font-size:clamp(32px,10vw,140px);line-height:1.08;}
-/* M08 h_xl 多行（用 / 分行）+ 逐行对齐(左/中/右) + 逐行字号(大/小) */
-.h-xl-line{font-family:var(--serif-zh);font-weight:700;font-size:clamp(26px,6.2vw,96px);line-height:1.12;margin-top:1.4vh;}
-.h-xl-line.size-lg{font-size:clamp(32px,7.6vw,120px);}
+.h-hero-line{font-family:var(--serif-zh);font-weight:800;--fs-hero:clamp(32px,10vw,140px);font-size:calc(var(--fs-hero) * var(--sc-hero,1));line-height:1.08;}
+/* M08 h_xl 多行（用 / 分行）+ 逐行对齐(左/中/右) + 逐行字号(大/小)
+   全库唯一的 .h-xl-line 基础规则：字号基准以本条为准；size-lg / size-sm 是逐行绝对值，
+   层叠上盖过页级 fs-* 档位（「逐行 > 整页」由 CSS 顺序与优先级天然保证）。 */
+.h-xl-line{font-family:var(--serif-zh);font-weight:700;--fs-xl:clamp(24px,5.6vw,82px);font-size:calc(var(--fs-xl) * var(--sc-xl,1));line-height:1.06;margin-top:1.1vh;}
+.h-xl-line.size-lg{font-size:clamp(30px,6.6vw,104px);}
 .h-xl-line.size-sm{font-size:clamp(18px,3.6vw,56px);}
+/* ===== 页级字号档位 fs-lg / fs-sm（2026-11-20）：只改缩放变量，基准由各元件自身规则提供。
+   行级 size-lg/size-sm（M08 行大小）与块级 size-lg/size-sm（M10 <size=>）是绝对值覆盖，
+   会盖过页级档位 —— 即「行内 > 逐行 > 整页」的优先级由 CSS 层叠天然实现。 ===== */
+.kicker.fs-lg{--sc-kick:1.25}.kicker.fs-sm{--sc-kick:.8}
+.h-sub.fs-lg{--sc-sub:1.25}.h-sub.fs-sm{--sc-sub:.8}
+.h-md.fs-lg{--sc-md:1.25}.h-md.fs-sm{--sc-md:.8}
+.h-hero.fs-lg,.h-hero-line.fs-lg{--sc-hero:1.25}.h-hero.fs-sm,.h-hero-line.fs-sm{--sc-hero:.8}
+.h-xl.fs-lg,.h-xl-line.fs-lg{--sc-xl:1.25}.h-xl.fs-sm,.h-xl-line.fs-sm{--sc-xl:.8}
+.q-big.fs-lg{--sc-q:1.25}.q-big.fs-sm{--sc-q:.8}
+.body-zh.fs-lg{--sc-body:1.25}.body-zh.fs-sm{--sc-body:.8}
+.annot.fs-lg{--sc-annot:1.3}.annot.fs-sm{--sc-annot:.8}
+.footnote.fs-lg{--sc-foot:1.3}.footnote.fs-sm{--sc-foot:.75}
+.links-fixed.fs-lg{--sc-link:1.25}.links-fixed.fs-sm{--sc-link:.8}
 /* 主题自适应前景色（关键修复：hero/dark 页用纸色，light 页用墨色；依赖 .slide 的 color 继承，这里显式兜底，根治"文字与背景同色隐身"） */
 .slide.dark .h-hero-line,.slide.dark .h-xl-line{color:var(--paper);}
 .slide.light .h-hero-line,.slide.light .h-xl-line{color:var(--ink);}
@@ -906,9 +985,7 @@ _CSS_EXTRA = """
 /* M10 分步揭示（2026-08-19）：||| 分段的后续段初始隐藏，按右键/滚轮前进逐个揭示，揭示完才翻页 */
 .step-reveal.hidden{display:none!important;}
 /* 正文密度微调：行距/字号略收，让典型内容更稳地落在一屏内 */
-.body-zh{font-size:max(14px,1.1vw);line-height:1.5;}
-.h-xl-line{font-size:clamp(24px,5.6vw,82px);line-height:1.06;margin-top:1.1vh;}
-.h-xl-line.size-lg{font-size:clamp(30px,6.6vw,104px);}
+.body-zh{--fs-body:max(14px,1.1vw);font-size:calc(var(--fs-body) * var(--sc-body,1));line-height:1.5;}
 /* M11 引文整体放大（大纲 M11 字号: 大） */
 .callout .q-big.size-lg,.callout-fixed .q-big.size-lg{font-size:max(26px,2.4vw);line-height:1.4;font-weight:700;}
 
@@ -1141,6 +1218,21 @@ def _link_html(url, text):
 _ALIGN_CSS = {"居中": "center", "居左": "left", "居右": "right",
               "中": "center", "左": "left", "右": "right"}
 
+_MARK_TAGS = ("size", "align", "direction", "dim", "accent", "link")
+
+
+def strip_marks(text):
+    """剥掉行内标记语法、只留纯文字：给不参与富文本渲染的字段用（M12 图注/alt 等）。
+
+    这类字段不进 _inline_rich，标签会被 esc 原样留在页面上（`alt="说明&lt;accent&gt;词…"`）。
+    宁可按纯文字处理，也不把标签文字漏给读者与读屏软件；写法是否合法由 lint 管。"""
+    if not text:
+        return ""
+    s = re.sub(r"</?(?:%s)\b[^>]*>" % "|".join(_MARK_TAGS), "", str(text))
+    s = re.sub(r"<ico=[^>]*>", "", s)
+    return s.replace("**", "")
+
+
 def _inline_rich(val):
     """把正文中的行内标记转为安全 HTML（不套强调）：
        <size=大/中/小>...</size> → 局部放大 span；**...** → 加粗；<ico=name> → Lucide 图标。
@@ -1174,9 +1266,20 @@ def _inline_rich(val):
     val = re.sub(r'<dim\s*>(.*?)</dim\s*>',
                  lambda m: _store('<span class="dim">%s</span>' % _inline_rich(m.group(1))),
                  val, flags=re.S)
+    # 3.7) 行内精确强调 <accent>...</accent> → accent 色 span（2026-11-20 新增）
+    #     与 <dim> 成对：dim 弱化、accent 强化。解决页级「强调: [词]」同词全文着色的老问题——
+    #     同一词在一页出现多次时，只让写了标记的那一处变色。内容递归走 _inline_rich，
+    #     故可与 <size=>/**加粗**/<ico=> 任意嵌套；注入面为零（标签由引擎生成，内容再过 esc）。
+    val = re.sub(r'<accent\s*>(.*?)</accent\s*>',
+                 lambda m: _store('<span class="accent">%s</span>' % _inline_rich(m.group(1))),
+                 val, flags=re.S)
     # 4) 剥离整段标记（无闭合的 <size=大> / <size=1.5> / <align=居中>）；容忍等号两侧空白
     val = re.sub(r'<size\s*=\s*(大|中|小|[\d.]+)\s*>', '', val)
     val = re.sub(r'<(?:align|direction)\s*=\s*(居中|居左|居右|左|右|中)\s*>', '', val)
+    # 4b) 剥掉落单的结束标签：嵌套 <size=..> 时外层先被非贪婪匹配吃掉、内层开标签在第 4 步
+    #     已被剥离，末尾会剩下一个无主的 </size>（<accent>/<dim>/<link> 同理）。
+    #     留着会被第 5 步转义成标签文字直接上屏，故一律清掉；嵌套是否该写由 lint 报错提醒。
+    val = re.sub(r'</(?:size|align|direction|dim|accent|link)\s*>', '', val)
     # 5) 转义
     val = esc(val)
     # 6) 还原受保护片段（多趟：嵌套时内层占位符被封在外层占位符里，单趟 replace 会漏还原）
@@ -1210,9 +1313,20 @@ def em_html(html, phrases):
     pe_list.sort(key=len, reverse=True)
     pat = re.compile("(%s)" % "|".join(re.escape(x) for x in pe_list))
     out = []
+    stack = []   # span 语义栈：'accent' / 'other'（2026-11-20）
     # re.split 带捕获组：奇数下标为标签本身，原样保留，避免污染属性
     for i, seg in enumerate(re.split(r"(<[^>]*>)", html)):
-        out.append(seg if i % 2 else pat.sub(r'<span class="accent">\1</span>', seg))
+        if i % 2:
+            # 标签段：维护 span 栈，供「已在 accent 内」判定（行内 <accent> 已着色，不再二次包裹）
+            if re.match(r"<span\b", seg, re.I):
+                _mc = re.search(r'class\s*=\s*"([^"]*)"', seg)
+                stack.append("accent" if (_mc and "accent" in _mc.group(1).split()) else "other")
+            elif re.match(r"</span\s*>", seg, re.I):
+                if stack:
+                    stack.pop()
+            out.append(seg)
+            continue
+        out.append(seg if "accent" in stack else pat.sub(r'<span class="accent">\1</span>', seg))
     return "".join(out)
 
 def _size_span(kind, text, raw=False):
@@ -1248,6 +1362,51 @@ def _font_cls(size):
     except ValueError:
         return "", ""
 
+def _fs_cls(size, var=""):
+    """页级字号档位：大→fs-lg、小→fs-sm、数字→该元件的缩放变量 --sc-<var>:N、其余 ''。
+    返回 (class_suffix, style_string)。
+
+    与 _font_cls 的区别：fs-* 只改元件自身的缩放变量（--sc-*），基准字号仍由该元件
+    在各版式上下文中的规则提供，所以「整页放大」不会抹平版式间原有的字号差异；
+    而 size-* 是绝对值覆盖，用于块级（M10 <size=>）与行级（M08 行大小），
+    层叠上必然盖过 fs-* —— 即「行内 > 逐行 > 整页」的优先级由 CSS 本身保证。
+
+    var 必须传该元件 CSS 里的变量后缀（kicker→kick、h-xl→xl、body-zh→body…）：
+    倍数只能乘在元件自身基准上，写成 font-size:Nem 会相对**父元素**字号计算，
+    而标题基准是 vw、正文基准是 max(px,vw)，与父元素毫无关系——那样「倍数」会把
+    标题缩小数倍（.h-xl 5.4vw≈76px 被 1.5em 压成 24px）。只有行内 span 例外：
+    它的父元素就是所在段落，em 语义正确，故 var 留空时仍返回 font-size:Nem。"""
+    if not size:
+        return "", ""
+    sz = str(size).strip()
+    if sz in ("大", "lg", "L"):
+        return " fs-lg", ""
+    if sz in ("小", "sm", "S"):
+        return " fs-sm", ""
+    if sz in ("中", "md", "M"):
+        return "", ""
+    try:
+        v = float(sz)
+    except ValueError:
+        return "", ""
+    if not var:
+        return "", "font-size:%sem;" % v
+    return "", "--sc-%s:%s;" % (var, ("%g" % v))
+
+
+def _mult_style(size, var):
+    """数字倍数的内联声明片段（如 ``--sc-annot:1.5``）；非数字或空值返回 ''。
+
+    与 _fs_cls 互补：大/小走 size-*/fs-* 类，倍数没有对应类，只能写进该元件的
+    缩放变量再由 calc(var(--fs-x) * var(--sc-x,1)) 参与计算。M13/M14 用的是
+    size-* 绝对值档位，故倍数单独由本函数处理，避免整体换机制改变既有视觉。"""
+    try:
+        v = float(str(size).strip())
+    except (TypeError, ValueError):
+        return ""
+    return "--sc-%s:%g" % (var, v)
+
+
 def _apply_ctrl(inner, s):
     """页面级元件统一三控后处理（2026-08-19）：
        M05 kicker / M07 h_sub / M09 h_md —— 字号(大/小/倍数) + 垂直(vh) + 水平(vw)。
@@ -1256,10 +1415,13 @@ def _apply_ctrl(inner, s):
     if not inner:
         return inner
 
+    # 类名 → 该元件在 CSS 里的缩放变量后缀（倍数必须乘自身基准，见 _fs_cls 说明）
+    _SC_VAR = {"kicker": "kick", "h-sub": "sub", "h-md": "md"}
+
     def _wrap_html(m, size, v, h):
         cls_name = m.group(1)  # 元素类名：kicker / h-sub / h-md
         content = m.group(2)   # 元素内容
-        cls, sty = _font_cls(size)
+        cls, sty = _fs_cls(size, _SC_VAR.get(cls_name, ""))
         html = '<div class="%s%s" data-anim%s>%s</div>' % (
             cls_name, cls,
             (' style="%s"' % sty) if sty else "",
@@ -1306,6 +1468,108 @@ def em(t, phrases):
         return ""
     return em_html(_inline_rich(t), phrases)
 
+
+_INLINE_PAIRS = ("size", "align", "direction", "dim", "accent", "link")
+_TAG_RE = re.compile(r"<(/)?\s*([A-Za-z]+)\b[^>]*>")
+_SLASH_SPLIT_RE = re.compile(r"\s+[/／]\s+")
+
+
+def _rebalance_spans(segs):
+    """把被「 / 」分行切断的行内成对标记按段补全。
+
+    `<size=大>甲 / 乙</size>` 切成两段后，前段丢结束标签、后段丢开标签：
+    前段被当成「整段标记」静默剥离（词仍放大，看似正常），后段的 `</size>`
+    则原样漏到页面上（`<accent>`、`<dim>`、`<link>` 同理）。这里按段补齐——
+    未闭合的开标签在下一段重新开启、闭合标签在上一段补上，跨一次分行与写在
+    同一行内效果一致。
+
+    仅在确实出现结束标签时启用：无结束标签的 `<size=大>`、`<align=居中>` 是
+    既有的「整段标记」语法（由解析层抽为块级 size/align），不能动。"""
+    if not any("</" in s for s in segs):
+        return segs
+
+    def events(seg):
+        for m in _TAG_RE.finditer(seg):
+            name = m.group(2).lower()
+            if name in _INLINE_PAIRS:
+                yield bool(m.group(1)), name, m.group(0)
+
+    # 第一遍：每段开始时继承了哪些仍未闭合的开标签
+    inherited, stack = [], []
+    for seg in segs:
+        inherited.append(list(stack))
+        for closing, name, _raw in events(seg):
+            if closing:
+                for i in range(len(stack) - 1, -1, -1):
+                    if stack[i][0] == name:
+                        del stack[i:]
+                        break
+            else:
+                stack.append((name, _raw))
+    # 第二遍：段首补开标签、段尾补闭标签；段内匹配不上的闭标签删掉（防字面量泄漏）
+    out = []
+    for seg, inh in zip(segs, inherited):
+        stack = list(inh)
+        body = seg
+        for closing, name, raw in events(seg):
+            if closing:
+                hit = False
+                for i in range(len(stack) - 1, -1, -1):
+                    if stack[i][0] == name:
+                        del stack[i:]
+                        hit = True
+                        break
+                if not hit:
+                    body = body.replace(raw, "", 1)
+            else:
+                stack.append((name, raw))
+        prefix = "".join(raw for _, raw in inh)
+        suffix = "".join("</%s>" % name for name, _ in reversed(stack))
+        out.append((prefix + body + suffix).strip())
+    return out
+
+
+def split_struct(val):
+    """结构分隔符切分——全引擎斜杠切分的**唯一实现**（M10 正文/M08 多行标题/列表/引文分行共用）。
+
+    规则：**两侧带空白**的 `/` 或 `／` 才是分行/分项符；
+    贴字斜杠（唐/突厥、从征/归附/谯发/垛集、"火力组/机动组"）是正文内容，不切。
+
+    为什么必须要求空白：全系列实测 32 处贴字斜杠，其中 M10 正文 内就有
+    「来源分从征/归附/谯发/垛集四类」「皇帝/中央—将领/地方—全民/兵民合一」等十余处，
+    若按任意斜杠切会把正文拆得支离破碎（第13/14/16讲会直接毁页）。
+    另保护 `</xxx>` 结束标签内的斜杠，切完由 _rebalance_spans 把跨行拆散的
+    成对标记补回每段——否则 `<accent>甲 / 乙</accent>` 这类写法会漏出标签文字。"""
+    if not val:
+        return []
+    protected = []
+    s2 = val
+    if "</" in val:
+        def _p(m):
+            protected.append(m.group(0))
+            return "\x00%d\x00" % (len(protected) - 1)
+        s2 = re.sub(r"</[^>]+>", _p, val)
+    parts = [p.strip() for p in _SLASH_SPLIT_RE.split(s2) if p.strip()]
+    for i, tok in enumerate(protected):
+        parts = [p.replace("\x00%d\x00" % i, tok) for p in parts]
+    return _rebalance_spans(parts)
+
+
+def _q_lines(text, emphasis):
+    """引文/金句分行出口：两侧带空白的 `/` 或 `／` 分行。
+    切不出多行（含贴字斜杠、无斜杠）时原样退回 em(text)——保证对全库既有大纲零回归。
+    2026-11-19 补：此前 M11 callout 四出口均直接 em()，文档声称支持斜杠分行但从未实现。
+    2026-11-20 改：切分改为调用 split_struct（此前本函数自带一份切分实现，与解析层
+    分叉——`<accent>甲 / 乙</accent>` 在引文页会漏标签，在正文页不会）。"""
+    if not text:
+        return ""
+    if "/" not in text and "／" not in text:
+        return em(text, emphasis)
+    parts = split_struct(text)
+    if len(parts) <= 1:
+        return em(text, emphasis)
+    return "".join('<div class="q-line">%s</div>' % em(p, emphasis) for p in parts)
+
 def _points(items, emphasis=None):
     if items is None:
         return ""
@@ -1317,28 +1581,40 @@ def _points(items, emphasis=None):
 # 3) 版式原语（返回 .frame 内部 HTML）
 # ----------------------------------------------------------------------------
 def _hero_title(s, cls="h-hero"):
-    """M06 h_hero 标题：支持单行，或多行（/ 分隔）+ 逐行对齐（居左/居右）+ 垂直/水平平移（m06_v/m06_h）。"""
+    """M06 h_hero 标题：支持单行，或多行（/ 分隔）+ 逐行对齐（居左/居右）
+    + 字号档位（m06_size：fs-lg/fs-sm，相对本版式基准缩放）+ 垂直/水平平移（m06_v/m06_h）。"""
     lines = s.get("title_lines")
+    _fs, _fsty = _fs_cls(s.get("m06_size"), "hero")
     if not lines:
-        html = '<h1 class="%s" data-anim>%s</h1>' % (cls, em(s.get("title", ""), s.get("emphasis")))
+        html = '<h1 class="%s%s" data-anim%s>%s</h1>' % (
+            cls, _fs, (' style="%s"' % _fsty) if _fsty else "",
+            em(s.get("title", ""), s.get("emphasis")))
         return _movewrap(html, s.get("m06_v"), s.get("m06_h"))
     aligns = s.get("title_aligns") or (["left", "right"] if len(lines) == 2 else ["left"] * len(lines))
     out = []
     for i, ln in enumerate(lines):
         al = aligns[i] if i < len(aligns) else "left"
-        out.append('<div class="%s-line" data-anim style="width:100%%;text-align:%s">%s</div>' % (cls, al, em(ln, s.get("emphasis"))))
+        sty = "width:100%%;text-align:%s" % al + ((";" + _fsty) if _fsty else "")
+        out.append('<div class="%s-line%s" data-anim style="%s">%s</div>'
+                   % (cls, _fs, sty, em(ln, s.get("emphasis"))))
     return _movewrap("".join(out), s.get("m06_v"), s.get("m06_h"))
 
 def _hxl(s):
-    """M08 h_xl 主题句：单行，或多行（/ 分隔）+ 逐行对齐（左/中/右）+ 逐行字号（大/小）。
+    """M08 h_xl 主题句：单行，或多行（/ 分隔）+ 逐行对齐（左/中/右）+ 逐行字号（大/小）
+    + 页级字号档位（m08_size：fs-lg/fs-sm，相对本版式基准缩放）。
     注意：每个 line 盒子必须 width:100%，否则在 flex 列容器下被 align-items 压成内容宽，
     text-align 失效（这正是上一轮 P03/P07/P11/P13「居左·居右仍全居中」的根因；
-    M06 的 _hero_title 已加，这里 M08 一并补齐，系统性根治、不再逐页打补丁）。"""
+    M06 的 _hero_title 已加，这里 M08 一并补齐，系统性根治、不再逐页打补丁）。
+    字号优先级：行内 <size=>（span inline）> 行大小 size-*（绝对值，CSS 层叠胜出）
+    > m08_size 的 fs-*（只改缩放变量）—— 三者可同时写，互不打架。"""
     lines = s.get("title_lines")
     single_al = s.get("title_align", "left")
+    _fs, _fsty = _fs_cls(s.get("m08_size"), "xl")
     if not lines:
-        style = ' style="width:100%%;text-align:%s"' % single_al if single_al != "left" else ' style="width:100%"'
-        html = '<h2 class="h-xl" data-anim%s>%s</h2>' % (style, em(s.get("title", ""), s.get("emphasis")))
+        _st = "width:100%" + ((";text-align:%s" % single_al) if single_al != "left" else "")
+        _st += (";" + _fsty) if _fsty else ""
+        html = '<h2 class="h-xl%s" data-anim style="%s">%s</h2>' % (
+            _fs, _st, em(s.get("title", ""), s.get("emphasis")))
         return _movewrap(html, s.get("m08_v"), s.get("m08_h"))
     aligns = s.get("title_aligns") or (["left", "right"] if len(lines) == 2 and single_al == "left" else [single_al] * len(lines))
     sizes = s.get("line_sizes") or ["std"] * len(lines)
@@ -1351,7 +1627,8 @@ def _hxl(s):
             cls += " size-lg"
         elif sz == "小":
             cls += " size-sm"
-        style = ' style="width:100%%;text-align:%s"' % al if al != "left" else ' style="width:100%"'
+        cls += _fs
+        style = ' style="width:100%%;text-align:%s%s"' % (al, (";" + _fsty) if _fsty else "")
         out.append('<div class="%s" data-anim%s>%s</div>' % (cls, style, em(ln, s.get("emphasis"))))
     return _movewrap("".join(out), s.get("m08_v"), s.get("m08_h"))
 
@@ -1484,22 +1761,22 @@ def _img_figure(s, ratio="auto"):
             fig = ('<figure class="img-slot has-img r-%s" data-anim style="aspect-ratio:%s;max-height:%s">'
                    '<img src="%s" alt="%s" style="width:100%%;height:100%%;object-fit:contain;'
                    'object-position:%s;display:block"/>%s</figure>'
-                   ) % (ratio, ar, maxh, esc_attr(f), esc_attr(img.get("label", "")), op, cap)
+                   ) % (ratio, ar, maxh, esc_attr(f), esc_attr(strip_marks(img.get("label", ""))), op, cap)
         else:
             # 读不到尺寸（罕见格式）→ 兜底旧行为：width:100%;height:auto（不裁、可能溢出）
             fig = ('<figure class="img-slot has-img r-%s" data-anim style="max-height:%s">'
                    '<img src="%s" alt="%s" style="width:100%%;height:auto;display:block"/>%s</figure>'
-                   ) % (ratio, maxh, esc_attr(f), esc_attr(img.get("label", "")), cap)
+                   ) % (ratio, maxh, esc_attr(f), esc_attr(strip_marks(img.get("label", ""))), cap)
         # M12 垂直 / M12 水平 四向微调（2026-08-19，vh/vw 视觉平移，不参与布局流）
         return _movewrap(fig, img.get("v"), img.get("h"))
-    label = img.get("label", "待补 · 配图")
+    label = strip_marks(img.get("label", "待补 · 配图"))
     return ('<figure class="img-slot r-%s" data-anim style="max-height:%s">'
             '<div class="plus">+</div><div class="label">%s</div>%s</figure>'
             ) % (ratio, maxh, esc_attr(label), cap)
 
 
 def p_cover(s, ctx):
-    _MOUNT = {"M06", "M07", "meta-row"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M06", "M07", "meta-row"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     _subs = s.get("sub_lines")
     if _subs:
         sub_html = "".join('<div class="h-sub" data-anim>%s</div>' % em(x, s.get("emphasis")) for x in _subs)
@@ -1517,7 +1794,7 @@ def p_cover(s, ctx):
         " · ".join(esc(m) for m in s.get("meta", [])) or "&nbsp;")
 
 def p_hero(s, ctx):
-    _MOUNT = {"M06", "M07"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M06", "M07"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     _subs = s.get("sub_lines")
     if _subs:
         sub_html = "".join('<div class="h-sub" data-anim>%s</div>' % em(x, s.get("emphasis")) for x in _subs)
@@ -1530,15 +1807,15 @@ def p_hero(s, ctx):
             '</div>') % (esc(s.get("label", "")), _hero_title(s, "h-hero"), sub_html)
 
 def p_lead(s, ctx):
-    _MOUNT = {"M08", "M10"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     return ('<div class="frame" style="justify-content:center">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
             '<div class="lead" data-anim style="margin-top:3vh;max-width:62vw">%s</div>'
-            '</div>') % (esc(s.get("kicker","")), _hxl(s), _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h")))
+            '</div>') % (esc(s.get("kicker","")), _hxl(s), _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size")))
 
 def p_statgrid(s, ctx):
-    _MOUNT = {"M08", "M10", "stats:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "stats:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     cells = []
     emph = s.get("emphasis") or []
     for st in s.get("stats", []):
@@ -1579,7 +1856,7 @@ def p_hbar(s, ctx):
     渐进增强：HTML 里直接写终值（JS 失效或低功耗时数字仍然正确），
     动效由 recipe `hbar` 负责把 bar 从 scaleX(0) 拉开、数字从 0 递增覆盖。
     """
-    _MOUNT = {"M08", "M10", "scale:", "stats:", "whitespace:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "scale:", "stats:", "whitespace:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     stats = s.get("stats", []) or []
     emph = s.get("emphasis") or []
     vals = []
@@ -1635,7 +1912,7 @@ def p_hbar(s, ctx):
         rows.append('<div class="hbar-empty">— 本页缺少 stats: 数据 —</div>')
     _bd = s.get("body")
     _bhtml = ('<div class="lead" data-anim style="margin-top:2.2vh;max-width:74vw">%s</div>'
-              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))) if _bd else ""
+              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))) if _bd else ""
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -1644,7 +1921,7 @@ def p_hbar(s, ctx):
             '</div>') % (esc(s.get("kicker", "")), _hxl(s), _bhtml, "".join(rows))
 def p_kpitower(s, ctx):
     """L20 KPI 塔：stats: label / nb(数值,决定柱高) / unit / note。柱自底部拉起。"""
-    _MOUNT = {"M08", "M10", "stats:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "stats:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     stats = s.get("stats", []) or []
     emph = s.get("emphasis") or []
     vals = []
@@ -1679,7 +1956,7 @@ def p_kpitower(s, ctx):
         cols.append('<div class="hbar-empty">— 本页缺少 stats: 数据 —</div>')
     _bd = s.get("body")
     _bhtml = ('<div class="lead" data-anim style="margin-top:2.2vh;max-width:74vw">%s</div>'
-              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))) if _bd else ""
+              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))) if _bd else ""
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -1695,7 +1972,7 @@ def p_loop(s, ctx):
     中心词：默认「闭环」，可用页面级 center: 覆盖（如 center: OODA循环）。
     渐进增强：HTML 内联已给最终形态，动效负责环描线 + 节点序列点亮。
     """
-    _MOUNT = {"M08", "M10", "center:", "steps:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "center:", "steps:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     import math
     steps = s.get("steps", []) or []
     n = max(len(steps), 1)
@@ -1731,7 +2008,7 @@ def p_loop(s, ctx):
                    % (i + 1, _cls, em(_t, _emph), esc(st.get("desc", ""))))
     _bd = s.get("body")
     _bhtml = ('<div class="lead" data-anim style="margin-top:2.2vh;max-width:74vw">%s</div>'
-              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))) if _bd else ""
+              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))) if _bd else ""
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -1746,7 +2023,7 @@ def p_system(s, ctx):
 
     SVG 由引擎生成，作者不写 - svg:。动效：三层由外向内 scale 入。
     """
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     items = s.get("items", []) or []
     if len(items) > 3:
         print("  [L22 警告] 系统同心圆只支持 3 层，本页给了 %d 项，第 4 项起【不会显示】：%s"
@@ -1775,7 +2052,7 @@ def p_system(s, ctx):
                    % (_c, em(_t, _semph), esc(it.get("d", ""))))
     _bd = s.get("body")
     _bhtml = ('<div class="lead" data-anim style="margin-top:2.2vh;max-width:74vw">%s</div>'
-              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))) if _bd else ""
+              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))) if _bd else ""
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -1785,7 +2062,7 @@ def p_system(s, ctx):
                          "".join(lis) or '<div class="hbar-empty">— 本页缺少 items: —</div>', svg)
 def p_wall(s, ctx):
     """L23 多图证据墙：imgs: file=路径 / cap=图注（2-3 张同类图并列）。"""
-    _MOUNT = {"M08", "M10", "imgs:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "imgs:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     imgs = s.get("imgs", []) or []
     tiles = []
     for im in imgs:
@@ -1804,7 +2081,7 @@ def p_wall(s, ctx):
     cls = "wall-grid n%d" % min(max(n, 1), 3)
     _bd = s.get("body")
     _bhtml = ('<div class="lead" data-anim style="margin-top:2.2vh;max-width:74vw">%s</div>'
-              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))) if _bd else ""
+              % _body_block(_bd, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))) if _bd else ""
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -1816,15 +2093,15 @@ def p_grid2(s, ctx):
     """L05 图文（增强·2026-09-13）：左文右图；支持 6:6/7:5/8:4 三档比例
     （页面级 `grid:` 或 `图文比例:` 显式选；不输则自动判断：竖图→8:4 窄列、否则→6:6 对半，默认 5:5=6:6）。
     左栏可挂 callout 引用（吸 guizang L10 高密度信息结构）。"""
-    _MOUNT = {"M08", "M10", "M12", "callout:", "callout_src:", "grid:", "svg:", "svg_cap:", "图对齐", "图文比例"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M12", "callout:", "callout_src:", "grid:", "svg:", "svg_cap:", "图对齐", "图文比例"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     left = s.get("left", "")
-    left_html = _body_block(left, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    left_html = _body_block(left, s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     # callout 引用（M11 callout / callout_src；兼容旧 text/src 键）
     co = s.get("callout") or s.get("text")
     co_src = s.get("callout_src") or s.get("src")
     if co:
         callout_html = '<div class="callout-fixed" data-anim><div class="q-big">%s</div>%s</div>' % (
-            em(co, s.get("emphasis")),
+            _q_lines(co, s.get("emphasis")),
             '<span class="callout-src">%s</span>' % esc(co_src) if co_src else "")
     else:
         callout_html = ""
@@ -1850,7 +2127,7 @@ def p_grid2(s, ctx):
             '</div>%s</div>') % (grid_cls, extra, _hc, esc(s.get("kicker", "")), _hxl(s), left_html, callout_html, img)
 
 def p_rowline(s, ctx):
-    _MOUNT = {"M08", "M10", "rows:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "rows:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     rows = []
     _n = len(s.get("rows", []))
     _rs = 1.0 if _n <= 5 else (0.82 if _n <= 7 else (0.72 if _n <= 9 else (0.62 if _n <= 12 else 0.54)))
@@ -1866,17 +2143,23 @@ def p_rowline(s, ctx):
             '</div>') % (esc(s.get("kicker","")), _hxl(s), "".join(rows))
 
 def p_quote(s, ctx):
-    _MOUNT = {"M07", "M10", "M11"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M07", "M10", "M11"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     text = s.get("text") or s.get("subtitle", "")
     qcls = "q-short" if len(text or "") <= 18 else ("q-long" if len(text or "") >= 40 else "q-std")
+    # M11 三控（2026-11-20 补）：此前 quote 分支只传 text/src，M11 字号/垂直/水平在金句页整组失效
+    _qsz, _qsty = _fs_cls(s.get("q_size"), "q")
+    _qhtml = _movewrap('<div class="q-big %s%s"%s data-anim="line">%s</div>'
+                       % (qcls, _qsz, (' style="%s"' % _qsty) if _qsty else "",
+                          _q_lines(text, s.get("emphasis"))),
+                       s.get("m11_v"), s.get("m11_h"))
     return ('<div class="frame center" style="gap:3vh">'
             '<div class="kicker" data-anim>%s</div>'
-            '<div class="q-big %s" data-anim="line">%s</div>'
+            '%s'
             '<div class="callout-src" data-anim="line">%s</div>'
-            '</div>') % (esc(s.get("kicker","")), qcls, em(text, s.get("emphasis")), esc(s.get("src","")))
+            '</div>') % (esc(s.get("kicker","")), _qhtml, esc(s.get("src","")))
 
 def p_pillar(s, ctx):
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     items = []
     for it in s.get("items", []):
         ic = it.get("ic", "")
@@ -1903,7 +2186,7 @@ def p_pillar(s, ctx):
             '</div>') % (esc(s.get("kicker","")), _hxl(s), g, "".join(items))
 
 def p_directional(s, ctx):
-    _MOUNT = {"M08", "M09", "M10", "left(M09+body):", "right(M09+body):"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M09", "M10", "left(M09+body):", "right(M09+body):"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     def side(d, anim, emphasis=None):
         pts = _points(d.get("points"), emphasis)
         return ('<div class="col" data-anim="%s">'
@@ -1915,24 +2198,31 @@ def p_directional(s, ctx):
             '</div>') % (esc(s.get("kicker","")), _hxl(s),
                          side(s.get("left",{}), "left", s.get("emphasis")), side(s.get("right",{}), "right", s.get("emphasis")))
 
-def _body_block(body, emphasis=None, wrap_cls="body-zh", v=None, h=None):
+def _body_block(body, emphasis=None, wrap_cls="body-zh", v=None, h=None, size=None):
     """通用 M10 正文块渲染：接受 块列表 / 字符串 / 字符串列表，统一输出 HTML。
     块字典：{"text":..,"size":"大/小/数字倍数(如 1.5)","align":"left/center/right"} 或 {"items":[..]}（列表）。
-    v/h：M10 垂直/水平微调（vh/vw，负上正下/负左正右），经 _movewrap 包裹，不参与布局流。"""
+    v/h：M10 垂直/水平微调（vh/vw，负上正下/负左正右），经 _movewrap 包裹，不参与布局流。
+    size：M10 页级字号档位（大/小），以 fs-* 施加到每一块；块自带 size（行内 <size=>）
+          用 size-* 绝对值覆盖，天然形成「块级 > 页级」。"""
     if body is None:
         return ""
+    # 正文块只有 .body-zh 一种类，缩放变量固定 --sc-body（倍数乘自身基准，见 _fs_cls）
+    _fs, _fsty = _fs_cls(size, "body")
     if isinstance(body, str):
-        return _movewrap('<div class="%s" data-anim style="margin-top:2vh;max-width:64vw">%s</div>' % (wrap_cls, em(body, emphasis)), v, h)
+        return _movewrap('<div class="%s%s" data-anim style="margin-top:2vh;max-width:64vw%s">%s</div>'
+                         % (wrap_cls, _fs, (";" + _fsty) if _fsty else "", em(body, emphasis)), v, h)
     if not isinstance(body, list):
         body = [body]
     out = []
     for blk in body:
         if isinstance(blk, str):
-            out.append('<div class="%s" data-anim style="margin-top:1.4vh">%s</div>' % (wrap_cls, em(blk, emphasis)))
+            out.append('<div class="%s%s" data-anim style="margin-top:1.4vh%s">%s</div>'
+                       % (wrap_cls, _fs, (";" + _fsty) if _fsty else "", em(blk, emphasis)))
             continue
         if "items" in blk:
             for it in blk["items"]:
-                out.append('<div class="%s" data-anim style="margin-top:1.4vh">· %s</div>' % (wrap_cls, em(it, emphasis)))
+                out.append('<div class="%s%s" data-anim style="margin-top:1.4vh%s">· %s</div>'
+                           % (wrap_cls, _fs, (";" + _fsty) if _fsty else "", em(it, emphasis)))
             continue
         if "steps" in blk:
             # 分步揭示（2026-08-19）：默认第一段正常显示、后续段 .step-reveal.hidden 初始隐藏，
@@ -1950,6 +2240,9 @@ def _body_block(body, emphasis=None, wrap_cls="body-zh", v=None, h=None):
                     cls += " size-sm"
                 elif re.match(r"^[\d.]+$", sz):
                     stl.append("font-size:%sem" % sz)  # 分步块数字倍数（2026-09-04，与普通块对称）
+                cls += _fs
+                if _fsty:
+                    stl.append(_fsty.rstrip(";"))
                 if al:
                     stl.append("text-align:%s" % al)
                 if i == 0 and not lead_empty:
@@ -1968,6 +2261,9 @@ def _body_block(body, emphasis=None, wrap_cls="body-zh", v=None, h=None):
             cls += " size-sm"
         elif re.match(r"^[\d.]+$", _sz):
             st.append("font-size:%sem" % _sz)  # 块级数字倍数，与行内 <size=1.5> 对称（2026-09-04，此前被静默丢弃）
+        cls += _fs
+        if _fsty:
+            st.append(_fsty.rstrip(";"))
         if blk.get("align"):
             st.append("text-align:%s" % blk["align"])
         style = "margin-top:1.4vh" + ("; " + "; ".join(st) if st else "")
@@ -1976,20 +2272,23 @@ def _body_block(body, emphasis=None, wrap_cls="body-zh", v=None, h=None):
 
 def p_callout(s, ctx):
     """L10 引文页（引文降级为页面级固定元件后，本版式仍可独立成页，且支持标题/正文/图片）。"""
-    _MOUNT = {"M08", "M10", "M11", "M12"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M11", "M12"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     kicker = esc(s.get("kicker",""))
     parts = []
     if kicker:
         parts.append('<div class="kicker" data-anim>%s</div>' % kicker)
     if s.get("title"):  # M08 可选标题（引文页也可有主题句）
         parts.append('%s' % _hxl(s))
-    qsz = " size-lg" if "大" in (s.get("q_size", "") or "") else ""
+    qsz, qsty = _fs_cls(s.get("q_size"), "q")
     parts.append(_movewrap('<div class="callout callout-bottom" data-anim>'
-                           '<div class="q-big%s">%s</div>'
+                           '<div class="q-big%s"%s>%s</div>'
                            '<span class="callout-src">%s</span>'
-                           '</div>' % (qsz, em(s.get("q",""), s.get("emphasis")), esc(s.get("cite",""))),
+                           '</div>' % (qsz,
+                                       (' style="%s"' % qsty) if qsty else "",
+                                       _q_lines(s.get("q",""), s.get("emphasis")), esc(s.get("cite",""))),
                            s.get("m11_v"), s.get("m11_h")))
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"),
+                     size=s.get("m10_size"))
     if bh:
         parts.append(bh)
     _img = s.get("img", {}) or {}
@@ -2001,7 +2300,7 @@ def p_callout(s, ctx):
     return '<div class="frame">%s</div>' % "".join(parts)
 
 def p_imgslot(s, ctx):
-    _MOUNT = {"M08", "M10", "M12", "svg:", "svg_cap:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M12", "svg:", "svg_cap:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     ratio = s.get("img", {}).get("ratio", "auto")
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
@@ -2011,7 +2310,7 @@ def p_figsvg(s, ctx):
     """L12 示意图页：优先内联 SVG（真实示意图），其次 M12 文件 本地图片（2026-08-19 新增：
     此前只认 svg，M12 文件被丢——P09 图片不显示根因）。图片用 margin-top:auto 贴页面底部。
     M10 正文原生渲染在标题与图之间（2026-08-19 追加：避免 body-fixed 补挂到图下方挡住贴底）。"""
-    _MOUNT = {"M08", "M10", "M12", "cap:", "svg:", "svg_cap:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M12", "cap:", "svg:", "svg_cap:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     svg = s.get("svg_inline") or s.get("svg", "")
     _maxh = _safe_length(s.get("img", {}).get("maxh", "62"), "vh") or "62vh"
     if svg:
@@ -2026,7 +2325,7 @@ def p_figsvg(s, ctx):
                % _img_figure(s, ratio))
     else:
         fig = ""
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -2035,8 +2334,8 @@ def p_figsvg(s, ctx):
             '</div>') % (esc(s.get("kicker", "")), _hxl(s), bh, fig)
 
 def p_text(s, ctx):
-    _MOUNT = {"M08", "M10"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
-    body_html = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    _MOUNT = {"M08", "M10"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
+    body_html = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -2044,7 +2343,7 @@ def p_text(s, ctx):
             '</div>') % (esc(s.get("kicker","")), _hxl(s), body_html)
 
 def p_pipeline(s, ctx):
-    _MOUNT = {"M08", "M10", "steps:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "steps:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     cols = s.get("cols", 5)
     steps = []
     for i, st in enumerate(s.get("steps", [])):
@@ -2065,7 +2364,7 @@ def p_statnote(s, ctx):
     """L16 文字标牌（降级版·2026-09-13）：原「衬线大字居中」改为「非衬线常规/左轴/发丝线」，
     与粗标题形成明确层级；标题强制左轴（消除双行左/右错位）；首末条 accent 点睛。
     notes 以 / 或 、 分隔多条；含 ||| 走分步揭示（与 M10 同一约定）。"""
-    _MOUNT = {"M08", "M10", "M10 notes:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M10 notes:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     # 标题强制左轴：消除 _hxl 双行默认「第一行居左、第二行居右」的错位
     s = dict(s)
     s["title_align"] = "left"
@@ -2115,11 +2414,11 @@ def p_statnote(s, ctx):
 def p_statement(s, ctx):
     """L24 论断陈述：一句核心判断（衬线粗体+强左轴+大留白+发丝线）。
     承载「单句强判断」场景（S03 之魂）；与 L16 降级版分工：L16=多条并列判断，L24=一句定调。"""
-    _MOUNT = {"M08", "M10", "lead:", "statement:", "sub:", "text:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "lead:", "statement:", "sub:", "text:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     st = s.get("statement") or s.get("text") or s.get("subtitle", "")
     sub = s.get("sub") or s.get("lead") or ""
     sub_html = ('<div class="stat-sub-l24" data-anim>%s</div>' % em(sub, s.get("emphasis"))) if sub else ""
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame" style="justify-content:center">'
             '<div class="statement-l24" data-anim>%s</div>'
             '%s%s'
@@ -2128,7 +2427,7 @@ def p_statement(s, ctx):
 def p_timeline(s, ctx):
     """L25 横向时间轴：1px 线 + 8×8 方节点 + 等宽年份在上；每项 year/title/desc。
     线由每项的 noderow 内轴拼接（跨越相邻项全宽，节点居中压线），保证水平对齐连续。"""
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     items = []
     for it in s.get("items", []):
         items.append(
@@ -2138,7 +2437,7 @@ def p_timeline(s, ctx):
             '<div class="tl-title-l25">%s</div>'
             '<div class="tl-desc-l25">%s</div>'
             '</div>' % (esc(it.get("year", "")), em(it.get("title", ""), s.get("emphasis")), em(it.get("desc", ""), s.get("emphasis"))))
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s%s'
@@ -2148,7 +2447,7 @@ def p_timeline(s, ctx):
 def p_microcard(s, ctx):
     """L26 微卡矩阵：3×2，每卡左上主句+右下小注，仅一处 accent 点睛（吸 S16 微卡）。
     accent 默认落在首卡；可在条目设 accent:true 显式指定，或 accent_first:false 取消。"""
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     items = s.get("items", [])
     acc_first = s.get("accent_first", True)
     cards = []
@@ -2158,7 +2457,7 @@ def p_microcard(s, ctx):
                      '<div class="mc-main">%s</div>'
                      '<div class="mc-sub">%s</div></div>'
                      % (" accent" if is_acc else "", em(it.get("main", ""), s.get("emphasis")), esc(it.get("sub", ""))))
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s%s'
@@ -2172,7 +2471,7 @@ def p_imagehero(s, ctx):
               fit（2026-09-15 新增·图区高度按图片真实比例自适应、无留白不裁切、标题落下方）/
               side（竖图：图占左全高、右侧纵向排）。
 （图内主体位置由 cover/contain 布局决定；object-position 固定 center center，2026-09-15 阶段2 起不再支持微调。）"""
-    _MOUNT = {"M08", "M10", "M12", "cap:", "img.file:", "img_mode:", "kpis:", "title:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "M12", "cap:", "img.file:", "img_mode:", "kpis:", "title:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     img = s.get("img", {}) or {}
     f = img.get("file") or s.get("file")
     mode = (img.get("img_mode") or s.get("img_mode") or "cover").strip().lower()
@@ -2182,13 +2481,23 @@ def p_imagehero(s, ctx):
     fit = "contain" if (mode == "contain" or is_side or is_fit) else "cover"
     side_cls = " side" if is_side else (" infographic" if is_info else "")
     top_style = (' style="flex:0 0 auto;aspect-ratio:%s"' % img["fit_ratio"]) if (is_fit and img.get("fit_ratio")) else ""
+    # M12 垂直/水平（2026-11-20）：L27 图位铺满，不能外包 vwrap（会破坏 .ih-img-l27 尺寸规则），
+    # 直接给 img 自身加 transform —— 同样不参与文档流，且不改 DOM 结构。
+    _mv = []
+    _iv = _safe_length(img.get("v"), "vh")
+    _ih = _safe_length(img.get("h"), "vw")
+    if _iv:
+        _mv.append("translateY(%s)" % _iv)
+    if _ih:
+        _mv.append("translateX(%s)" % _ih)
+    _mvstyle = (";transform:%s" % " ".join(_mv)) if _mv else ""
     if f:
         img_html = ('<img class="ih-img-l27" src="%s" alt="%s" '
-                    'style="object-fit:%s;object-position:center center"/>') % (
-                    esc_attr(f), esc_attr(img.get("label", "")), fit)
+                    'style="object-fit:%s;object-position:center center%s"/>') % (
+                    esc_attr(f), esc_attr(img.get("label", "")), fit, _mvstyle)
     else:
         img_html = '<div class="ih-img-l27" style="display:flex;align-items:center;justify-content:center;background:rgba(42,30,19,.06);font-family:var(--sans-zh);opacity:.5">待补 · 配图</div>'
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     cap = s.get("cap") or s.get("caption") or ""
     cap_html = ('<div class="ih-cap-l27" data-anim>%s</div>' % em(cap, s.get("emphasis"))) if cap else ""
     kpis = s.get("kpis", []) or []
@@ -2209,8 +2518,8 @@ def p_imagehero(s, ctx):
 
 def p_interactive(s, ctx):
     """L17 互动页：大问句/任务 + 可选提示(M10) + 互动标签(M07≈tag)。"""
-    _MOUNT = {"M08", "M10", "tag:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    _MOUNT = {"M08", "M10", "tag:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     tag = s.get("tag", "思考 · 讨论")
     return ('<div class="frame center" style="gap:3vh">'
             '<div class="kicker" data-anim>%s</div>'
@@ -2220,7 +2529,7 @@ def p_interactive(s, ctx):
 
 def p_ziyuan(s, ctx):
     """L18 字源卡：每个字一张卡（字形 ch / 构件 form / 本义 mean）。"""
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     items = s.get("items", [])
     cards = []
     for it in items:
@@ -2239,7 +2548,7 @@ def p_ziyuan(s, ctx):
 def p_chain(s, ctx):
     """L12b 链条式：横向节点链，节点间「→」；支持留白节点(blank)。
     2026-08-19 修复：①_ hxl 已自带 <h2>，去掉外层重复包裹（此前嵌套 h2 非法）；② M10 正文原生渲染在标题与链条之间（此前 body-fixed 补挂在链条后易被忽略）。"""
-    _MOUNT = {"M08", "M10", "items:"}  # 本版式接受的大纲字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）
+    _MOUNT = {"M08", "M10", "items:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     nodes = s.get("items", [])
     elems = []
     for i, it in enumerate(nodes):
@@ -2256,7 +2565,7 @@ def p_chain(s, ctx):
         elems.append(node)
         if i < len(nodes) - 1:
             elems.append('<div class="chain-arrow">→</div>')
-    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"))
+    bh = _body_block(s.get("body"), s.get("emphasis"), v=s.get("m10_v"), h=s.get("m10_h"), size=s.get("m10_size"))
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'
             '%s'
@@ -2277,7 +2586,7 @@ def _fixed_elements(s, ctx):
     parts = []
     BODY_NATIVE = {"lead", "grid2", "text", "callout", "interactive", "figsvg", "chain", "hbar", "kpitower", "loop", "system", "wall", "statement", "timeline", "microcard", "imagehero"}
     # M10 正文/小字（补挂，留在 .frame 内作为主内容）
-    _bhtml = _body_block(s.get("body"), s.get("emphasis"), "body-zh", s.get("m10_v"), s.get("m10_h"))
+    _bhtml = _body_block(s.get("body"), s.get("emphasis"), "body-zh", s.get("m10_v"), s.get("m10_h"), size=s.get("m10_size"))
     if _bhtml and t not in BODY_NATIVE:
         parts.append('<div class="body-fixed">%s</div>' % _strip_anim(_bhtml))
     # 设计指令占位（待我按描述生成真实 SVG 后替换；已有 svg_inline 或本页已渲染真实节点链时不再显示）
@@ -2361,8 +2670,10 @@ def _bottom_elements(s, ctx):
         a = s.get("m13_align", "left")
         sz = s.get("m13_size", "")
         szcls = " size-lg" if "大" in sz else (" size-sm" if "小" in sz else "")
-        _m13 = _movewrap('<div class="annot%s" data-anim style="text-align:%s">%s</div>'
-                         % (szcls, a, em(s["annotation"], s.get("emphasis"))),
+        _msty = _mult_style(sz, "annot")
+        _m13 = _movewrap('<div class="annot%s" data-anim style="text-align:%s%s">%s</div>'
+                         % (szcls, a, (";" + _msty) if _msty else "",
+                            em(s["annotation"], s.get("emphasis"))),
                          s.get("m13_v"), s.get("m13_h"))
     _m14 = ""
     if s.get("footnote") and t != "cover":
@@ -2370,8 +2681,10 @@ def _bottom_elements(s, ctx):
         f = s.get("m14_align", "right")
         sz = s.get("m14_size", "")
         szcls = " size-lg" if "大" in sz else (" size-sm" if "小" in sz else "")
-        _m14 = _movewrap('<div class="footnote %s%s" data-anim>%s</div>'
-                         % (f, szcls, em(s["footnote"], s.get("emphasis"))),
+        _fsty = _mult_style(sz, "foot")
+        _m14 = _movewrap('<div class="footnote %s%s" data-anim%s>%s</div>'
+                         % (f, szcls, (' style="%s"' % _fsty) if _fsty else "",
+                            em(s["footnote"], s.get("emphasis"))),
                          s.get("m14_v"), s.get("m14_h"))
     if _m13 and _m14:
         parts.append('<div class="aux-row" data-anim>%s%s</div>' % (_m13, _m14))
@@ -2380,13 +2693,15 @@ def _bottom_elements(s, ctx):
             parts.append(_m13)
         if _m14:
             parts.append(_m14)
-    # M11 引文框（非 callout 页，作为底部引文框）
+    # M11 引文框（非 callout 页，作为底部引文框）——字号档位 2026-11-20 补齐（此前只接位移）
     if t != "callout" and s.get("callout_fixed"):
         cf = s["callout_fixed"]
+        _qsz, _qsty = _fs_cls(s.get("q_size"), "q")
         parts.append(_movewrap('<div class="callout-fixed" data-anim>'
-                               '<div class="q-big">%s</div>'
+                               '<div class="q-big%s"%s>%s</div>'
                                '<span class="callout-src">%s</span></div>'
-                               % (em(cf.get("q", ""), s.get("emphasis")), esc(cf.get("cite", ""))),
+                               % (_qsz, (' style="%s"' % _qsty) if _qsty else "",
+                                  _q_lines(cf.get("q", ""), s.get("emphasis")), esc(cf.get("cite", ""))),
                                s.get("m11_v"), s.get("m11_h")))
     # M16 参考链接（2026-08-24 新增：页面级链接框，底部 slide-aux；支持多条，新标签打开）
     if s.get("links"):
@@ -2404,9 +2719,13 @@ def _bottom_elements(s, ctx):
                 # 无合法 URL：仅显示文字（退化，不渲染可点链接）
                 items_html.append('<span class="ilink-text">%s</span>' % esc(txt))
         if items_html:
-            parts.append('<div class="links-fixed" data-anim>'
-                         '<span class="links-h">参考链接</span>'
-                         '<div class="links-list">%s</div></div>' % "".join(items_html))
+            # M16 三控（2026-11-20 补）：此前该元件完全没有字号/垂直/水平入口，写了静默丢弃
+            _lsz, _lsty = _fs_cls(s.get("m16_size"), "link")
+            parts.append(_movewrap('<div class="links-fixed%s" data-anim%s>'
+                                   '<span class="links-h">参考链接</span>'
+                                   '<div class="links-list">%s</div></div>'
+                                   % (_lsz, (' style="%s"' % _lsty) if _lsty else "", "".join(items_html)),
+                                   s.get("m16_v"), s.get("m16_h")))
     return "".join(parts)
 
 def _strip_anim(html_str):
@@ -2507,9 +2826,13 @@ def _apply_dual(inner, slide):
     cls, style_attr = fm.group(1), (fm.group(2) or "")
     head_start = fm.end()
     # kicker（可选）＋标题（单行 h2.h-xl，或多行 .h-xl-line×N）
+    # 类名后允许追加档位类（fs-lg/fs-sm 等）：_apply_ctrl 会写成 class="kicker fs-lg"，
+    # 精确匹配 class="kicker" 会整块落空 —— 一旦落空，标题就掉出固定高 head-block、
+    # 与正文基线错位（2026-11-20 实测：M05/M08 任一处写「字号: 大」即触发）。
     hm = re.compile(
-        r'\s*(<div class="kicker"[^>]*>.*?</div>)?'
-        r'\s*(?:(<h[12] class="h-xl"[^>]*>.*?</h[12]>)|((?:<div class="h-xl-line[^>]*>.*?</div>)+))',
+        r'\s*(<div class="kicker(?: [^"]*)?"[^>]*>.*?</div>)?'
+        r'\s*(?:(<h[12] class="h-xl(?: [^"]*)?"[^>]*>.*?</h[12]>)'
+        r'|((?:<div class="h-xl-line[^>]*>.*?</div>)+))',
         re.S).match(inner, head_start)
     if not hm:
         return inner
@@ -2756,6 +3079,31 @@ def build(lecture, out_dir, theme=None, font_mood=None, font_mode=None):
                 "</body>\n</html>\n") % (
         head, _CSS, _CSS_EXTRA, _theme_css, _INIT, _CANVASES, deck, _deck_js, _STEP_JS,
         _LUCIDE_SRC, _LUCIDE_INIT, _MOTION_SRC, _MOTION)
+
+    # 背景音乐：仅在写了音乐字段且音频可用时插入 audio 元素与控制脚本。
+    # 不写时一行都不加，既有产物保持字节级不变（golden 基线无需重拍）。
+    _bgm = lecture.get("bgm") or {}
+    _tracks = _bgm.get("tracks") or ([{"src": _bgm["src"], "volume": _bgm.get("volume", 0.6)}]
+                                     if _bgm.get("src") else [])
+    if _tracks:
+        _plan = list(_bgm.get("plan") or [])
+        if len(_plan) != len(slides):
+            print("  [背景音乐警告] 逐页曲目表长度 %d 与页数 %d 不符，按 0 号曲补齐"
+                  % (len(_plan), len(slides)))
+            _plan = (_plan + [0] * len(slides))[:len(slides)]
+        _audio = ('<audio id="eink-bgm" loop preload="none" data-volume="%.3f"></audio>\n'
+                  % float(_bgm.get("volume", 0.6)))
+        html_doc = html_doc.replace("<body>\n", "<body>\n" + _audio, 1)
+        _js = (_BGM_JS.replace("__EINK_BGM_TRACKS__", json.dumps(_tracks, ensure_ascii=False))
+                      .replace("__EINK_BGM_PLAN__", json.dumps(_plan)))
+        # 切页钩子只在有音乐时注入：无音乐产物仍与旧版逐字节一致。
+        _anchor = "window.__currentSlideIndex = idx;"
+        if _anchor not in html_doc:
+            raise RuntimeError("背景音乐切页钩子锚点缺失，拒绝产出无换曲能力的坏包")
+        html_doc = html_doc.replace(
+            _anchor,
+            _anchor + " dispatchEvent(new CustomEvent('eink-slide-change',{detail:{index:idx}}));", 1)
+        html_doc = html_doc.replace("</body>", _js + "</body>", 1)
 
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "index.html")

@@ -74,12 +74,14 @@ if errorlevel 1 (
 )
 
 :: ---- Pick a python that HAS fonttools (needed to embed fonts offline) ----
-::      The WorkBuddy-managed python that often sits first on PATH has no
-::      fonttools, which silently downgrades the deck to CDN fonts. Probe known
-::      installs and use the first one that can import fontTools.
-set "PYBIN=python"
+::      2026-11-02: probe the project venv FIRST (set PROJECT_VENV), then legacy
+::      installs; dates vary by machine.
+::      PATH "python" is the last
+::      resort (may lack fonttools -> CDN fallback warning, same as before).
+set "PYBIN="
 set "PYFT="
 for %%P in (
+    "%PROJECT_VENV%\Scripts\python.exe"
     "%USERPROFILE%\AppData\Local\Programs\Python\Python313\python.exe"
     "%USERPROFILE%\AppData\Local\Programs\Python\Python312\python.exe"
     "C:\Program Files\Python\Python313\python.exe"
@@ -95,6 +97,7 @@ for %%P in (
         )
     )
 )
+if not defined PYFT set "PYBIN=python"
 
 if defined PYFT (
     echo python [fonttools OK] : %PYBIN%

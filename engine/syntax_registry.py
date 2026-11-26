@@ -97,6 +97,18 @@ META_KEYS = {
         "semantics": "离线时另指定基调。",
         "constraint": "serif | sans",
     },
+    "背景音乐": {
+        "status": "ACTIVE", "required": False,
+        "anchor": "render_outline.build_lecture:背景音乐",
+        "semantics": "整讲默认曲（首页及未换曲页的背景音乐）：音频以 base64 内嵌进 index.html，产物自包含；浏览器禁止自动播，首次按键/点击/触摸后起播，循环播放；M 键静音/恢复，B 键低功耗时暂停、退出低功耗后恢复；翻页按页内 `音乐:` 换曲或静音。不写任何音乐字段则产物零变化。",
+        "constraint": "相对大纲目录的音频路径，音量写在路径之后、以竖线分隔（0–100，默认 60）；支持 mp3/m4a/mp4/ogg/oga/wav/webm；禁绝对路径与 .. 穿越",
+    },
+    "音乐库": {
+        "status": "ACTIVE", "required": False,
+        "anchor": "render_outline.build_lecture:音乐库",
+        "semantics": "可选命名曲目表，供页内 `音乐: 别名` 引用；所有曲目在渲染期 base64 内嵌，同文件同音量只存一份。",
+        "constraint": "写法：别名=文件|音量；别名2=文件2|音量2；多首用中文分号或英文分号分隔；路径/音量/格式约束同 `背景音乐`",
+    },
     "讲次类型": {
         "status": "ACTIVE", "required": False,
         "anchor": "render_outline.__main__块:讲次类型",
@@ -126,11 +138,17 @@ PAGE_KEYS = {
         "semantics": "声明本页版式（28 选 1）；未写/写错按 raw 兜底渲染。",
         "constraint": "L01–L27 或 L12b（见 LAYOUTS）",
     },
+    "音乐": {
+        "status": "ACTIVE",
+        "anchor": "render_outline.parse_outline:音乐",
+        "semantics": "页级背景音乐：别名（须在顶部 `音乐库:` 声明）/ 相对路径|音量 / 停（本页静音）。不写则沿用上一页，首页沿顶部 `背景音乐:` 默认曲；切页自动换 src，循环、手势起播、M/B 控制不变。区间配乐写法：起点页写曲、终点后一页写 `停`，中间页留空沿用（重复写曲会换 src 并从头播）。",
+        "constraint": "写法：音乐: 别名 / 音乐: 文件.mp3|音量 / 音乐: 停（也接受 关/off/stop）；禁绝对路径与 .. 穿越；格式白名单同 `背景音乐`",
+    },
     "强调": {
         "status": "ACTIVE",
         "anchor": "render_outline.parse_outline:强调",
-        "semantics": "强调锚点词（[ ] 内逗号分隔）；正文命中即套 accent 色。裸短语缺方括号会被整行静默丢弃。",
-        "constraint": "必须 [词1, 词2] 形式；锚点词须出现在当页可见文字中；单页 ≤3 处",
+        "semantics": "强调锚点词（[ ] 内**半角**逗号分隔）；给本页**已有文字**套 accent 色，不是新增内容块。裸短语缺方括号会被整行静默丢弃。",
+        "constraint": "必须 [词1, 词2] 形式；锚点词须是本页已有文字的原样子串（M01 页眉/M03 页脚/M05 kicker/M16 链接/stats 子项不参与着色，见 §3 M15）；全角「，」不切分；单页 ≤3 处；0 命中静默不变色",
     },
     "data_animate": {
         "status": "ACTIVE",
@@ -155,16 +173,16 @@ PAGE_KEYS = {
     "left(M09+body)": {
         "status": "ACTIVE",
         "anchor": "render_outline.parse_outline:left",
-        "semantics": "L09 左栏（M09 栏标题 + body 要点；同行内联或空值+缩进子项）。裸 left:/right: 整行被忽略。",
+        "semantics": "L09 左栏（M09 栏标题 + body 要点；同行内联或空值+缩进子项）。裸 left:/right: 整行被忽略。空值写法下同栏可连续写多条 `- body: …`，逐条渲染（左右栏各自独立）；正文密度规则见上游 lecture 技能。",
         "layouts": ["L09"],
-        "constraint": "同行写 title / 要点；或空值 + 缩进 `- M09 h_md:` 与 `- body:` 子项",
+        "constraint": "同行写 title / 要点；或空值 + 缩进 `- M09 h_md:` 与多条 `- body:` 子项",
     },
     "right(M09+body)": {
         "status": "ACTIVE",
         "anchor": "render_outline.parse_outline:right",
-        "semantics": "L09 右栏，同上。",
+        "semantics": "L09 右栏，同上（同栏可连续写多条 `- body: …`，逐条渲染）。",
         "layouts": ["L09"],
-        "constraint": "同行写 title / 要点；或空值 + 缩进子项",
+        "constraint": "同行写 title / 要点；或空值 + 缩进 `- M09 h_md:` 与多条 `- body:` 子项",
     },
     "svg": {
         "status": "ACTIVE",
@@ -308,16 +326,16 @@ PAGE_KEYS = {
 # fields: {子字段前缀: {status, semantics, constraint}}；"" = 裸字段（`- Mxx: 值`）
 # 三控（字号/垂直/水平）由 _three_ctrl 统一消费，不逐项登记
 MODULE_FIELDS = {
-    "M01": {"desc": "顶左眉标（逐页运行标签）", "fields": {"": "本页运行眉标：封面=第X讲·讲题／扉页=第X块·块名／内页=本页短标签；不填隐藏"}},
+    "M01": {"desc": "顶左眉标（归属/分组标签）", "fields": {"": "封面=第X讲·讲题／扉页=第X块·块名／内页=归属（本页归谁／哪一组／哪个单元），同组连续页原样重复、跨组才换；逐页变化的是 M03，勿把本页主题写在这里；不填隐藏"}},
     "M02": {"desc": "讲稿题目（元数据层专用）", "fields": {}, "note": "仅在顶部元数据出现（讲稿题目(M02)），页面内无 M02 字段。"},
     "M03": {
-        "desc": "底左块标签", "fields": {
-            "": "[块名] · [本页概括]；简写 `- M03: 块·内容` 亦通；前段可被 块词表 受控校验。禁写「本讲结论一」等内部批注",
+        "desc": "底左本页主题", "fields": {
+            "": "[板块] · [本页主题]；逐页变化；归属写 M01、主题写这里，勿把人物/分组名当本页主题；简写 `- M03: 块·内容` 亦通；前段可被 块词表 受控校验。禁写「本讲结论一」等内部批注",
         }},
     "M04": {"desc": "右下页码", "fields": {}, "note": "引擎自动生成 位置/总页数，不写。"},
     "M05": {
-        "desc": "内容区眉标 kicker", "fields": {
-            "": "kicker 文本（通常空）；勿放系列名或顶左眉标",
+        "desc": "内容区眉标 kicker（默认不写）", "fields": {
+            "": "kicker 文本，默认留空；学生可见，禁写「人物线／制度线」等备课内部术语；勿放系列名或顶左眉标（与 M01 不重复）",
         }, "controls": "字号/垂直/水平", "anchor": "render_outline.apply_module:M05"},
     "M06": {
         "desc": "主标题 h_hero（L01/L02/L15）", "fields": {
@@ -327,7 +345,7 @@ MODULE_FIELDS = {
             "垂直": "垂直平移",
             "水平": "水平平移",
         },
-        "controls": "垂直/水平（字号不支持，写了告警并忽略）", "anchor": "render_outline.apply_module:M06"},
+        "controls": "字号/垂直/水平", "anchor": "render_outline.apply_module:M06"},
     "M07": {
         "desc": "副标题 h_sub", "fields": {"": "副标题；含「/」拆多行（sub_lines）"},
         "controls": "字号/垂直/水平", "anchor": "render_outline.apply_module:M07"},
@@ -341,7 +359,7 @@ MODULE_FIELDS = {
             "垂直": "垂直平移",
             "水平": "水平平移",
         },
-        "controls": "垂直/水平/行大小/行对齐（整体字号不支持，写了告警并忽略）",
+        "controls": "字号/垂直/水平/行大小/行对齐（优先级：行内 <size=> > 行大小 > 整页字号）",
         "anchor": "render_outline.apply_module:M08",
         "constraint": "标题最多两行（三行溢出标题区，lint 报错）"},
     "M09": {
@@ -349,19 +367,22 @@ MODULE_FIELDS = {
         "controls": "字号/垂直/水平", "layouts": ["L09"], "anchor": "render_outline.apply_module:M09"},
     "M10": {
         "desc": "正文（多段多行）", "fields": {
-            "": "正文块；多行=多条；支持 ||| 分步、<size=> 整段/局部放大、<align=> 整段对齐、**加粗**、<ico=> 图标",
+            "": "正文块；多行=多条（重复 `- M10 正文: …` 每行一条、同行两侧带空白的 ` / ` 分行、或首句+缩进 `-` 列表，三种写法均逐条渲染）；支持 ||| 分步、<size=> 整段/局部放大、<align=> 整段对齐、**加粗**、<ico=> 图标",
             "列表": "行内列表（甲 / 乙 / 丙）",
             "notes": "L16 标牌内容（学生可见，非教师备注）；支持 ||| 分步与缩进子项",
         },
-        "controls": "垂直/水平（字号不支持，写了告警并指路 <size=> 行内标记）",
+        "controls": "字号/垂直/水平（字号作用于本页全部正文块；逐块差异用行内 <size=>，优先级更高）",
         "anchor": "render_outline.apply_module:M10",
-        "constraint": "||| 只在此字段（正文/notes/列表）生效；「/」须两侧带空白才分行"},
+        "constraint": "||| 只在此字段（正文/notes/列表）生效；「/」须两侧带空白才分行；"
+                      "三控作用于正文块（body），L09 左右栏要点走 split 结构、不吃 M10 三控"
+                      "（那一层用 M09 的字号/垂直/水平，或换版式）"},
     "M11": {
         "desc": "引文 callout + 出处", "fields": {
             "": "引文正文（L07 金句页原生；**其余版式作为页面级固定引文框挂底部**——通用元件，非 L07/L10 专用）",
             "callout_src": "引文出处（L07 显示为 src；其余版式挂 cite）",
         },
-        "controls": "字号/垂直/水平", "anchor": "render_outline.apply_module:M11"},
+        "controls": "字号/垂直/水平（L07 金句页、L10 引文页、其余版式的底部引文框三处口径一致）",
+        "anchor": "render_outline.apply_module:M11"},
     "M12": {
         "desc": "配图", "fields": {
             "文件": "本地配图路径 images/xx（渲染拷到输出目录）；同页多条仅最后生效",
@@ -377,25 +398,35 @@ MODULE_FIELDS = {
             "img_slot": "占位（待补·说明）：无文件时渲染虚线占位框 + label 文本；交付前必须补成真实图（lecture §5c）",
             "": "其余裸值 → img.label（alt 文本）",
         },
+        "controls": "垂直/水平；缩放用 maxh/ratio（图片不是文字，无文字档位）",
         "anchor": "render_outline.apply_module:M12",
-        "constraint": "真实图流程见 lecture §5c：下载→压缩→M12→M14，交付前不得带 img_slot 占位"},
+        "constraint": "真实图流程见 lecture §5c：下载→压缩→M12→M14，交付前不得带 img_slot 占位；"
+                      "写「字号」会被引擎告警拦截并指路 maxh（图片没有字号概念）"},
     "M13": {
         "desc": "注释（页面级小注）", "fields": {"": "注释正文；与 M14 同存时合并 .aux-row 两端对齐"},
-        "controls": "字号（大/小）/垂直/水平；「对齐」控 左/中/右",
+        "controls": "字号（大/小/倍数）/垂直/水平；「对齐」控 左/中/右",
         "anchor": "render_outline.apply_module:M13"},
     "M14": {
         "desc": "下标/出处", "fields": {"": "出处/史料层级标签；默认右对齐"},
-        "controls": "字号（大/小）/垂直/水平；「对齐」控 左/中/右",
+        "controls": "字号（大/小/倍数）/垂直/水平；「对齐」控 左/中/右",
         "anchor": "render_outline.apply_module:M14"},
     "M15": {
-        "desc": "强调（引擎按 `- 强调:` 解析；`- M15:` 写法无分支）",
-        "fields": {}, "note": "文档 M15 = `强调: [词]`（见 PAGE_KEYS.强调）。`- M15:` 前缀写法引擎无 apply 分支，会打印未知模块警告。",
+        "desc": "强调（锚点着色器，不是内容块）",
+        "fields": {
+            "强调": "`- 强调: [词1, 词2]`——给本页**已有文字**套 accent 色，不新增任何内容",
+            "参与着色的字段": "M06/M07/M08 标题、M10 正文与条目、M11 引文、M13 注释、M14 下标、items 子项、statement/sub（以上为 2026-10-27 逐字段渲染实测；其余字段未逐一实测）",
+            "不参与着色的字段": "M01 页眉角标、M03 页脚小标、M05 kicker、M16 链接文字、M12 图注、stats 的 label/note、callout_src 引文出处——都不过 em()，锚点写这些词必然 0 命中；其中 M01/M03/M05/M12/M16 写 `<accent>` 还会 lint 报错（前四者标签原样显示，M12 标签被剥掉、只留纯文字）",
+            "未命中": "锚点词在本页可见文字里出现 0 次 → 静默不变色、渲染层不报错；lint 已加校验（10e，警告级）",
+            "分隔": "只认半角逗号 `,`；写全角「，」会把整串当成一个锚点词，几乎必然 0 命中",
+            "别名": "`- M15:` 前缀写法引擎无 apply 分支，会打印未知模块警告——一律写 `- 强调:`",
+        },
     },
     "M16": {
         "desc": "参考链接", "fields": {
             "链接": "显示文字 | URL；空值 + 缩进子项（每条 `- 文字 | URL`）",
             "link": "链接 别名",
         },
+        "controls": "字号/垂直/水平",
         "anchor": "render_outline.apply_module:M16",
         "constraint": "协议白名单 http/https/mailto；新标签打开"},
 }
@@ -409,21 +440,21 @@ COMPOUND_KEYS = {
         "anchor": "render_outline.parse_compound_item:items",
         "subitems": {
             "ic": "L08 图标（Lucide 名，不用 emoji）",
-            "t": "主词/标题",
-            "d": "说明",
+            "t": "主词/标题——L08 支柱卡、L22 系统同心圆认（p_pillar / p_system）；L25 写 t= 页面只剩年份、L26 写 t= 整卡空（这两个版式认 year/title/desc）",
+            "d": "说明——L08 / L12b / L22 认；L25 写 d=、L26 写 d= 该行留空（改用 title/desc）",
             "ch": "L12b 链节点名",
             "form": "L18 字形",
             "mean": "L18 释义",
             "blank": "L12b 留白（裸词 blank，无等号）",
-            "year": "L25 年份",
-            "title": "L25 节点标题",
-            "desc": "L25 描述",
-            "main": "L26 主词",
+            "year": "L25 年份（**L25 只认 year / title / desc 三键**）",
+            "title": "L25 节点标题（另有 L21 steps 用同名键）",
+            "desc": "L25 描述（另有 L21 steps 用同名键）",
+            "main": "L26 主词（**L26 只认 main / sub 两键**）",
             "sub": "L26 副词",
             "accent": "是否 accent（是/否）",
         },
         "layouts": ["L08", "L12b", "L18", "L25", "L26"],
-        "rule": "空值 + 缩进子项 `- k=v / k2=v2`；主行带值会被静默忽略",
+        "rule": "空值 + 缩进子项 `- k=v / k2=v2`；主行带值会被静默忽略。各版式**只用自己那几键**（见上），写错键**不报错、该位静默留空、lint 查不出**，只能靠核对页面",
     },
     "stats": {
         "status": "ACTIVE",
@@ -480,7 +511,7 @@ _LAYOUT_META = {
     "L04": {"name": "数据大字报", "primary": ["stats:"]},
     "L05": {"name": "图文", "primary": ["M08", "M10", "M12", "grid:", "callout:"]},
     "L06": {"name": "年表", "primary": ["rows:"]},
-    "L07": {"name": "名句", "primary": ["M11 callout:", "M11 callout_src:"], "skip_dual": True},
+    "L07": {"name": "名句", "primary": ["M11 callout:", "M11 callout_src:"]},
     "L08": {"name": "支柱", "primary": ["items:"], "constraint": "2–6 根（4→4 列、2→2 列、其余 3 列）"},
     "L09": {"name": "对比", "primary": ["left(M09+body):", "right(M09+body):"], "constraint": "裸 left:/right: 整行被忽略"},
     "L10": {"name": "引文", "primary": ["M11 callout:"]},
@@ -499,8 +530,10 @@ _LAYOUT_META = {
     "L22": {"name": "系统同心圆", "primary": ["items:"], "constraint": "严格 3 层；引擎自绘，禁挂 svg:"},
     "L23": {"name": "多图证据墙", "primary": ["imgs:"]},
     "L24": {"name": "论断陈述", "primary": ["statement:", "sub:"], "skip_dual": True},
-    "L25": {"name": "横向时间轴", "primary": ["items:"]},
-    "L26": {"name": "微卡矩阵", "primary": ["items:"]},
+    "L25": {"name": "横向时间轴", "primary": ["items:"],
+            "constraint": "每项 `year` / `title` / `desc` 三键；写 `t=` / `d=` 不报错，但节点标题与描述留空、页面只剩年份（2026-10-27 实测）"},
+    "L26": {"name": "微卡矩阵", "primary": ["items:"],
+            "constraint": "每卡 `main` / `sub` 两键；写 `t=` / `d=` 不报错，但主句与小注都留空（2026-10-27 实测）"},
     "L27": {"name": "图幅主导", "primary": ["img.file:", "img_mode:", "title:", "cap:", "kpis:"], "skip_dual": True},
 }
 
@@ -560,13 +593,16 @@ SPLIT_FIELDS = {"正文", "notes", "列表", "h_hero", "h_xl", "kicker", "callou
 STEP_OK_FIELDS = {"正文", "notes", "列表"}              # 允许 ||| 分步的字段（lint L50 迁移）
 
 # =====================================================================
-# G. 行内标记（M10 正文内）
+# G. 行内标记（写在走强调渲染的文本字段里）
 # =====================================================================
 INLINE_MARKS = {
-    "size": {"status": "ACTIVE", "anchor": "render_outline._m10_block", "semantics": "字号标记。命名档位 大/中/小（未闭合=整段、成对=局部）；**显式数字倍数 <size=1.5> 亦支持**（float 成功 → font-size:Xem，_size_span L1147-1160，局部与整段均可）。"},
+    "size": {"status": "ACTIVE", "anchor": "render_outline._m10_block", "semantics": "字号标记。命名档位 大/中/小（未闭合=整段、成对=局部）；**显式数字倍数 <size=1.5> 亦支持**（局部：span 的 font-size:Xem，相对所在段落；整段：写进正文缩放变量 --sc-body，相对正文自身基准 —— 两种口径都以「1=原大」为倍率，与页级字号档位同源）。**不支持嵌套**（一层即可：整段标记与局部标记不要互相套；套了内层会被丢弃，lint 报错误级）。跨「 / 」分行写成对的标记时，引擎按段自动补齐，无需每段各写一遍。"},
     "align": {"status": "ACTIVE", "anchor": "render_outline._m10_block", "semantics": "整段对齐 <align=居中/居左/居右>（未闭合）。"},
     "bold": {"status": "ACTIVE", "anchor": "_eink_template._inline_rich", "semantics": "**加粗**。"},
     "ico": {"status": "ACTIVE", "anchor": "_eink_template._inline_rich", "semantics": "行内图标 <ico=名>（Lucide）。"},
+    "accent": {"status": "ACTIVE", "anchor": "_eink_template._inline_rich", "semantics": "行内精确强调 `<accent>词</accent>`——只给这一处套 accent 色；同一词在本页别处不变色。与页级「强调: [词]」并存时：写进锚点表的词仍全页着色，故要「只标一处」就不要把该词写进锚点表。"},
+    "dim": {"status": "ACTIVE", "anchor": "_eink_template._inline_rich", "semantics": "行内弱化 `<dim>词</dim>`——半透明，与 accent 成对。"},
+    "link": {"status": "ACTIVE", "anchor": "_eink_template._inline_rich", "semantics": "行内超链接 `<link=URL>文字</link>`——新标签打开（`rel=noopener noreferrer`）；URL 走协议白名单（http/https/mailto），不合法则降级为纯文字。M16 条目的 `文字 | URL` 是同一能力的字段写法。"},
     "step": {"status": "ACTIVE", "anchor": "render_outline._m10_block", "semantics": "分步揭示 |||（先问后揭；仅 M10 正文/notes/列表）。"},
 }
 
@@ -576,7 +612,7 @@ INLINE_MARKS = {
 SLASH_RULE = {
     "status": "ACTIVE",
     "anchor": "render_outline._split_struct",
-    "semantics": "两侧带空白的 / 或 ／ 才是分行/分项符；贴字斜杠（唐/突厥）是内容不切；保护 </xxx> 结束标签内斜杠。",
+    "semantics": "两侧带空白的 / 或 ／ 才是分行/分项符；贴字斜杠（唐/突厥）是内容不切；保护 </xxx> 结束标签内斜杠。适用字段：M06/M07/M08/M10 正文/notes/列表之外，M11 callout 引文同样适用（quote/callout/grid2/底部固定框四出口统一走 `_q_lines`）；写贴字的 ／ 只显示字面斜杠、不换行。",
 }
 
 # —— 供 guard 快速枚举 ——

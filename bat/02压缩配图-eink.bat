@@ -64,11 +64,14 @@ if errorlevel 1 (
 )
 
 :: ---- Pick a python that HAS Pillow (required; no silent downgrade) ----
-::      The WorkBuddy-managed python that often sits first on PATH has no
-::      Pillow. Probe known installs and use the first one that can import it.
-set "PYBIN=python"
+::      2026-11-02: probe the project venv FIRST (set PROJECT_VENV), then legacy
+::      installs; dates vary by machine.
+::      PATH "python" is the last
+::      resort - but only if it has Pillow.
+set "PYBIN="
 set "PYPIL="
 for %%P in (
+    "%PROJECT_VENV%\Scripts\python.exe"
     "%USERPROFILE%\AppData\Local\Programs\Python\Python313\python.exe"
     "%USERPROFILE%\AppData\Local\Programs\Python\Python312\python.exe"
     "C:\Program Files\Python\Python313\python.exe"
@@ -82,6 +85,13 @@ for %%P in (
                 set "PYPIL=1"
             )
         )
+    )
+)
+if not defined PYPIL (
+    python -c "import PIL" >nul 2>nul
+    if not errorlevel 1 (
+        set "PYBIN=python"
+        set "PYPIL=1"
     )
 )
 

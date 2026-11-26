@@ -1,29 +1,31 @@
 # -*- coding: utf-8 -*-
 """render_baseline.py —— 3c-2 行为零变化判据：渲染产物 sha256 基线
 =============================================================
-渲染示例大纲 + 16 讲 → HTML，记每个产物的 sha256 到 baseline.json。
+渲染示例大纲 + 实纲目录 → HTML，记每个产物的 sha256 到 _baseline_renders.json。
 3c-2 每步清理后重跑 --check：产物必须逐字节不变，任何 diff 即失败。
 
 用法：
-    python render_baseline.py            # 建基线（渲染全部，写 baseline.json）
+    python render_baseline.py            # 建基线（渲染全部，写 _baseline_renders.json）
     python render_baseline.py --check    # 重渲比对（0=零变化；1=有 diff）
     python render_baseline.py --update   # 重渲并覆盖基线（确认行为变化是预期时）
-    python render_baseline.py --outlines <目录>   # 覆盖 16 讲实纲目录（亦可用环境变量 EINK_OUTLINES_DIR）
+    python render_baseline.py --outlines <目录> [--outlines <目录2>]
+                                        覆盖实纲目录（亦可用环境变量 EINK_OUTLINES_DIR，`;` 分隔多目录）
 
-16 讲实纲目录的默认路径收编于同目录 _defaults.py（与 golden_check.py 同源），
-两脚本都靠 resolve_outlines_dir() 解析，不再各自写死本机路径。
+实纲目录的默认路径收编于同目录 _defaults.py（与 golden_check.py 同源），
+两脚本都靠 resolve_outlines_dirs() 解析，不再各自写死本机路径；多系列追加目录即可。
 """
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
 ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
 EINK_DIR = os.path.dirname(ENGINE_DIR)
 EX = os.path.join(ENGINE_DIR, "generated", "示例大纲.md")
-from _defaults import OUTLINES_FLAG, cli_value, resolve_outlines_dir  # noqa: E402
-OUTLINES_DIR = resolve_outlines_dir(cli_value(OUTLINES_FLAG))
+from _defaults import resolve_outlines_dirs  # noqa: E402
+OUTLINES_DIRS = resolve_outlines_dirs()
 RENDER = os.path.join(ENGINE_DIR, "render_outline.py")
 BASELINE = os.path.join(ENGINE_DIR, "_baseline_renders.json")
 TMP_ROOT = os.path.join(os.environ.get("TEMP", r"C:\Windows\Temp"), "eink_render_baseline")
@@ -59,10 +61,14 @@ def collect_html(out_dir):
 
 def targets():
     t = [("示例大纲", EX)]
-    if OUTLINES_DIR and os.path.isdir(OUTLINES_DIR):
-        for fn in sorted(os.listdir(OUTLINES_DIR)):
-            if fn.endswith(".md") and "大纲" in fn:
-                t.append((os.path.splitext(fn)[0], os.path.join(OUTLINES_DIR, fn)))
+    multi = len([d for d in OUTLINES_DIRS if os.path.isdir(d)]) > 1
+    for d in OUTLINES_DIRS:
+        if not os.path.isdir(d):
+            continue
+        tag = (os.path.basename(os.path.normpath(d)) + "/") if multi else ""
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".md") and "大纲" in fn and re.match(r"第\d+讲", fn):
+                t.append((tag + os.path.splitext(fn)[0], os.path.join(d, fn)))
     return t
 
 

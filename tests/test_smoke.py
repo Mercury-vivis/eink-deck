@@ -9,7 +9,7 @@ r"""eink-deck 冒烟测试（TST-1 / TST-2 / TST-4 / TST-5）—— 零依赖，
   * **不需要 pytest**：本文件自带极简 runner（见 main()），因为目标机上未安装 pytest。
   * **不在同步区留字节码**：入口处设 sys.dont_write_bytecode=True，import 引擎时不生成
     engine/__pycache__（OneDrive 同步区不该有 .pyc 噪声）。
-  * **用真实数据**：TST-2 直接解析 examples/示例大纲.md 并逐个渲染，不构造假 slide，
+  * **用真实数据**：TST-2 直接解析 engine/generated/示例大纲.md 并逐个渲染，不构造假 slide，
     避免"fixture 与真实数据漂移导致测试假绿"。
 
 覆盖（对应审查报告附录 D）：
@@ -245,7 +245,7 @@ def test_tst1_apply_module_mcode_matrix():
     cur = {"title": "原标题"}
     am(cur, "M06", "字号", "0.6")
     assert cur.get("title") == "原标题", "M06「字号」三控不得覆盖主标题：%r" % cur
-    assert "m06_size" not in cur, cur
+    assert cur.get("m06_size") == "0.6", cur   # 2026-11-20 起：字号进独立键，不占 title
 
     # M07 h_sub + 三控
     cur = {}
@@ -271,6 +271,7 @@ def test_tst1_apply_module_mcode_matrix():
     cur = {"title": "原标题"}
     am(cur, "M08", "字号", "大")
     assert cur.get("title") == "原标题", "M08「字号」三控不得覆盖主题句：%r" % cur
+    assert cur.get("m08_size") == "大", cur   # 2026-11-20 起：整页字号进独立键
 
     # M09 三控（页面级，作用于对比页两栏）
     cur = {}
@@ -604,6 +605,382 @@ def test_tst5_esc_escaping():
     et = _et()
     assert et.esc('<b>&"') == '&lt;b&gt;&amp;"', et.esc('<b>&"')
     assert "&quot;" in et.esc_attr('a"b'), et.esc_attr('a"b')
+
+
+# ---------------------------------------------------------------------------
+# TST-6 三控矩阵（2026-11-20 立）
+#
+# 判据三重：① 产物节点带档位类 / transform；② 该类在 CSS 中有**真实规则**；
+# ③ 无该能力时不许静默（M12 字号必须告警且不写 alt）。
+# 第 ② 条是本用例存在的理由：2.5.5 及以前 M05/M07/M09 会给元素加 size-lg 类，
+# 但 CSS 里根本没有 .kicker.size-lg —— 类存在、字号不动、lint 与渲染都不报错。
+# 只断言"类出现"的测试抓不到这种空转，必须连 CSS 一起断言。
+# ---------------------------------------------------------------------------
+_TRI_CASES = [
+    # (名称, slide, 期望产物片段, CSS 选择器正则)
+    ("M05 kicker 字号",
+     {"type": "cover", "title": "T", "kicker": "K", "m05_size": "大"},
+     'class="kicker fs-lg"', r"\.kicker\.fs-lg"),
+    ("M07 h_sub 字号",
+     {"type": "cover", "title": "T", "subtitle": "S", "m07_size": "大"},
+     'class="h-sub fs-lg"', r"\.h-sub\.fs-lg"),
+    ("M06 h_hero 字号",
+     {"type": "cover", "title": "T", "m06_size": "大"},
+     'class="h-hero fs-lg"', r"\.h-hero\.fs-lg"),
+    ("M08 h_xl 字号",
+     {"type": "text", "title": "T", "m08_size": "大"},
+     'class="h-xl fs-lg"', r"\.h-xl\.fs-lg"),
+    ("M09 h_md 字号",
+     {"type": "directional", "left": {"title": "甲", "points": []},
+      "right": {"title": "乙", "points": []}, "m09_size": "大"},
+     'class="h-md fs-lg"', r"\.h-md\.fs-lg"),
+    ("M10 body 字号",
+     {"type": "text", "body": [{"text": "正文"}], "m10_size": "大"},
+     'class="body-zh fs-lg"', r"\.body-zh\.fs-lg"),
+    ("M11 quote 字号",
+     {"type": "quote", "text": "引文", "q_size": "大"},
+     'class="q-big q-short fs-lg"', r"\.q-big\.fs-lg"),
+    ("M16 links 字号",
+     {"type": "text", "links": [{"text": "甲", "url": "https://example.com"}], "m16_size": "大"},
+     'class="links-fixed fs-lg"', r"\.links-fixed\.fs-lg"),
+    ("M13 annot 字号",
+     {"type": "text", "title": "T", "annotation": "注", "m13_size": "大"},
+     'class="annot size-lg"', r"\.annot\.size-lg"),
+    ("M14 footnote 字号",
+     {"type": "text", "title": "T", "footnote": "出处", "m14_size": "大"},
+     'class="footnote right size-lg"', r"\.footnote\.size-lg"),
+]
+
+
+@case
+def test_tst6_style_tier_has_real_css_rule():
+    """字号档位：产物带 fs-* 类，且 CSS 里确实有对应规则（防「只加类、无规则」的空转）。"""
+    et = _et()
+    css = et._CSS + et._CSS_EXTRA
+    ctx = _ctx(1)
+    bad = []
+    for name, slide, frag, css_re in _TRI_CASES:
+        html = et._render_slide(copy.deepcopy(slide), ctx, "light", "01 / 01")
+        if frag not in html:
+            bad.append("%s：产物缺「%s」" % (name, frag))
+        if not re.search(css_re, css):
+            bad.append("%s：CSS 缺规则 %s（档位会空转）" % (name, css_re))
+    assert not bad, "；".join(bad)
+
+
+@case
+def test_tst6_declared_font_size_is_actually_probed():
+    """注册表声明「字号」的元件，必须在 _TRI_CASES 里有实测探针。
+
+    这是防「新增元件时声明了字号、却没人验证它真的生效」的机制：注册表是声明唯一源，
+    本表是验证唯一源，两者集合必须相等 —— 不等就说明有一边漏了。"""
+    import syntax_registry as reg
+    declared = {m for m, v in reg.MODULE_FIELDS.items()
+                if "字号" in (v.get("controls") or "")}
+    probed = set()
+    for name, _slide, _frag, _re in _TRI_CASES:
+        probed.add(name.split()[0])
+    missing = sorted(declared - probed)
+    assert not missing, "以下元件在注册表里声明了「字号」，但 TST-6 没有实测探针：%r" % missing
+
+
+@case
+def test_tst6_vertical_horizontal_shift_reaches_dom():
+    """垂直/水平三控必须落到 transform：每个元件的 v+h 都要在产物里成对出现。"""
+    et = _et()
+    ctx = _ctx(1)
+    slides = {
+        "M05": {"type": "cover", "title": "T", "kicker": "K", "m05_v": "2", "m05_h": "1"},
+        "M06": {"type": "cover", "title": "T", "m06_v": "2", "m06_h": "1"},
+        "M07": {"type": "cover", "title": "T", "subtitle": "S", "m07_v": "2", "m07_h": "1"},
+        "M08": {"type": "text", "title": "T", "m08_v": "2", "m08_h": "1"},
+        "M09": {"type": "directional", "left": {"title": "甲", "points": []},
+                "right": {"title": "乙", "points": []}, "m09_v": "2", "m09_h": "1"},
+        "M10": {"type": "text", "body": [{"text": "正文"}], "m10_v": "2", "m10_h": "1"},
+        "M11quote": {"type": "quote", "text": "引文", "m11_v": "2", "m11_h": "1"},
+        "M13": {"type": "text", "title": "T", "annotation": "注", "m13_v": "2", "m13_h": "1"},
+        "M14": {"type": "text", "title": "T", "footnote": "出处", "m14_v": "2", "m14_h": "1"},
+        "M16": {"type": "text", "title": "T",
+                "links": [{"text": "甲", "url": "https://example.com"}], "m16_v": "2", "m16_h": "1"},
+    }
+    bad = []
+    for k, sl in slides.items():
+        html = et._render_slide(copy.deepcopy(sl), ctx, "light", "01 / 01")
+        if "translateY(2vh)" not in html or "translateX(1vw)" not in html:
+            bad.append("%s 未同时产出 translateY/translateX" % k)
+    assert not bad, "；".join(bad)
+
+
+@case
+def test_tst6_image_has_no_font_size_but_shift_works():
+    """M12：写「字号」不得污染 alt；垂直/水平在 L11 与 L27 都要生效。"""
+    ro = _ro()
+    et = _et()
+    cur = {}
+    ro.apply_module(cur, "M12", "字号", "大")
+    assert "label" not in (cur.get("img") or {}), "M12 字号不得被当作 alt 文本：%r" % cur
+    ctx = _ctx(1)
+    sl = {"type": "imgslot", "img": {"file": "images/x.png", "v": "2", "h": "1"}}
+    html = et._render_slide(copy.deepcopy(sl), ctx, "light", "01 / 01")
+    assert "translateY(2vh)" in html and "translateX(1vw)" in html, html[:400]
+    sl27 = {"type": "imagehero", "img": {"file": "images/x.png", "v": "2", "h": "1"}}
+    h27 = et._render_slide(copy.deepcopy(sl27), ctx, "light", "01 / 01")
+    assert "translateY(2vh)" in h27 and "translateX(1vw)" in h27, "L27 位移未落到 img：%s" % h27[:400]
+
+
+# ---------------------------------------------------------------------------
+# TST-7 行内精确强调（2026-11-20 立）
+# ---------------------------------------------------------------------------
+@case
+def test_tst7_inline_accent_is_positional():
+    """<accent> 只标指定那一处；同词其余位置不变色。"""
+    et = _et()
+    html = et.em("甲<accent>乙</accent>乙乙", [])
+    assert html.count('class="accent"') == 1, html
+    assert "乙乙" in html, html
+
+
+@case
+def test_tst7_inline_accent_coexists_with_anchor():
+    """与页级锚点并存：锚点仍全页着色，但 accent 内不重复包裹。"""
+    et = _et()
+    html = et.em("甲<accent>乙</accent>乙乙", ["乙"])
+    assert html.count('class="accent"') == 3, html
+    assert '<span class="accent"><span class="accent">' not in html, "accent 被重复包裹：%s" % html
+
+
+@case
+def test_tst7_inline_accent_nests_and_escapes():
+    """可与 <size=>/**加粗** 嵌套；内容照常转义（不产生注入面）。"""
+    et = _et()
+    h = et.em("<accent>**粗且强调**</accent>", [])
+    assert '<span class="accent"><strong>粗且强调</strong></span>' in h, h
+    h2 = et.em("<accent><script>x</script></accent>", [])
+    assert "<script" not in h2 and "&lt;script" in h2, h2
+
+
+# ---------------------------------------------------------------------------
+# TST-8：2026-11-20 审阅修掉的三处静默失真（以前没有任何用例覆盖，全靠肉眼）
+# ---------------------------------------------------------------------------
+@case
+def test_tst8_numeric_multiplier_scales_own_base():
+    """「字号: 1.5」必须乘**元件自身基准**，不能写成 font-size:1.5em（那是父元素字号）。
+
+    旧实现统一输出 font-size:1.5em：.h-xl 基准 5.4vw≈76px 被压成 24px（标题缩小 3 倍），
+    M13/M14 则完全无效。现在倍数写进该元件的 --sc-* 变量，由 calc(var(--fs-*) * N) 参与计算。"""
+    et = _et()
+    ctx = _ctx(1)
+    cases = [
+        ("M05", {"type": "cover", "title": "T", "kicker": "K", "m05_size": "1.5"}, "--sc-kick:1.5"),
+        ("M06", {"type": "cover", "title": "T", "m06_size": "1.5"}, "--sc-hero:1.5"),
+        ("M07", {"type": "cover", "title": "T", "subtitle": "S", "m07_size": "1.5"}, "--sc-sub:1.5"),
+        ("M08", {"type": "text", "title": "T", "m08_size": "1.5"}, "--sc-xl:1.5"),
+        ("M10", {"type": "text", "title": "T", "body": "B", "m10_size": "1.5"}, "--sc-body:1.5"),
+        ("M13", {"type": "text", "title": "T", "annotation": "注", "m13_size": "1.5"}, "--sc-annot:1.5"),
+        ("M14", {"type": "text", "title": "T", "footnote": "出处", "m14_size": "1.5"}, "--sc-foot:1.5"),
+    ]
+    bad = []
+    for name, slide, frag in cases:
+        html = et._render_slide(copy.deepcopy(slide), ctx, "light", "01 / 01")
+        if frag not in html:
+            bad.append("%s：缺 %s" % (name, frag))
+        if "font-size:1.5em" in html:
+            bad.append("%s：仍输出父元素相对的 font-size:1.5em" % name)
+    assert not bad, "；".join(bad)
+
+
+@case
+def test_tst8_page_size_tier_keeps_dual_baseline():
+    """整页字号档位（fs-lg/fs-sm）不能把标题挤出固定高 head-block。
+
+    _apply_ctrl 会把类写成 class="kicker fs-lg"、标题成 class="h-xl fs-lg"；
+    _apply_dual 若按 class="h-xl" 精确匹配，整块匹配落空 → 标题脱离双基线、与正文错位。"""
+    et = _et()
+    ctx = _ctx(1)
+    slide = {"type": "text", "title": "T", "body": "B"}
+    plain = et._render_slide(copy.deepcopy(slide), ctx, "light", "01 / 01")
+    assert "head-block" in plain, "基线页本身就缺 head-block，本用例前提不成立"
+    tiered = dict(slide, m08_size="大", m05_size="大")
+    html = et._render_slide(copy.deepcopy(tiered), ctx, "light", "01 / 01")
+    assert "head-block" in html, "写了「M08 字号: 大」后标题掉出双基线：%s" % html[:200]
+    assert "h-xl fs-lg" in html and "kicker fs-lg" in html, "档位类没落上，用例前提不成立"
+
+
+@case
+def test_tst8_inline_span_survives_slash_split():
+    """成对行内标记跨「 / 」分行时必须按段补全，不能漏出标签文字。
+
+    旧行为：`<size=大>甲 / 乙</size>后续` 前段丢结束标签、被当整段标记剥离，
+    后段的 `</size>` 原样渲染成文字；`<accent>` / `<dim>` / `<link>` 同理。"""
+    et = _et()
+    h = et._q_lines("<accent>甲 / 乙</accent> 后半", [])
+    assert '<span class="accent">甲</span>' in h and '<span class="accent">乙</span>' in h, h
+    assert "&lt;accent" not in h and "&lt;/accent" not in h, "引文页漏出 accent 标签文字：%s" % h
+
+    ro = _ro()
+    segs = ro._split_struct("<size=大>甲 / 乙</size>后续")
+    assert segs == ["<size=大>甲</size>", "<size=大>乙</size>后续"], segs
+
+
+# ---------------------------------------------------------------------------
+# TST-9 背景音乐（元数据 → 内嵌 → 放映控制 → 安全边界）
+# ---------------------------------------------------------------------------
+def _write_wav(path):
+    """生成 0.1 秒静音 WAV——只用于内嵌/控制链验证，不依赖任何音频素材。"""
+    import wave
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\x00\x00" * 800)
+
+
+def _bgm_outline(with_bgm=True, path_line="bgm.wav | 65"):
+    import os
+    import tempfile
+    d = tempfile.mkdtemp(prefix="eink_bgm_")
+    _write_wav(os.path.join(d, "bgm.wav"))
+    lines = ["- 讲次: 第1讲", "- 讲稿题目(M02): 背景音乐测试", "- 系列名: 测试", "- 总讲次数: 1"]
+    if with_bgm:
+        lines.append("- 背景音乐: %s" % path_line)
+    lines += ["", "## P01 · 测试页", "- 版式: L14", "- M08 h_xl: 标题", "- M10 正文: 正文"]
+    p = os.path.join(d, "大纲.md")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return d, p
+
+
+@case
+def test_tst9_bgm_embedded_and_controls_present():
+    """正例：写了 `背景音乐: 文件 | 音量` → base64 内嵌 + audio 元素 + M/B/手势控制脚本。"""
+    import os
+    import shutil
+    ro, et = _ro(), _et()
+    d, p = _bgm_outline()
+    try:
+        meta, pages = ro.parse_outline(p)
+        assert meta.get("背景音乐") == "bgm.wav | 65", meta
+        lec = ro.build_lecture(meta, pages, d, os.path.join(d, "out"))
+        assert lec["bgm"] and lec["bgm"]["volume"] == 0.65, lec.get("bgm")
+        assert lec["bgm"]["src"].startswith("data:audio/wav;base64,"), lec["bgm"]["src"][:60]
+        out = et.build(lec, os.path.join(d, "out"))
+        h = open(out, encoding="utf-8").read()
+        assert '<audio id="eink-bgm" loop preload="none" data-volume="0.650"' in h, h[:300]
+        assert 'data:audio/wav;base64,' in h and 'window.__einkBgmToggle' in h, "音频或控制脚本缺失"
+        assert "' · M '" in h and "音乐开" in h and "ppt-low-power-change" in h, "M 键提示或 B 键联动缺失"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@case
+def test_tst9_no_bgm_keeps_html_untouched():
+    """反例：不写背景音乐时不得插入 audio 标签/控制脚本（既有产物字节语义不变）。"""
+    import os
+    import shutil
+    ro, et = _ro(), _et()
+    d, p = _bgm_outline(with_bgm=False)
+    try:
+        meta, pages = ro.parse_outline(p)
+        lec = ro.build_lecture(meta, pages, d, os.path.join(d, "out"))
+        assert not lec.get("bgm"), lec.get("bgm")
+        out = et.build(lec, os.path.join(d, "out"))
+        h = open(out, encoding="utf-8").read()
+        assert "eink-bgm" not in h and "__einkBgmToggle" not in h and "M 音乐" not in h
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@case
+def test_tst9_bgm_path_guard_and_lint():
+    """安全与 lint：绝对路径/穿越被拒；缺失文件与越界音量在 lint 中报出。"""
+    import os
+    import shutil
+    ro = _ro()
+    d, p = _bgm_outline(with_bgm=False)
+    try:
+        for bad in (os.path.abspath(os.path.join(d, "bgm.wav")), "../bgm.wav"):
+            lec = ro.build_lecture({"背景音乐": bad}, [], d, os.path.join(d, "out"))
+            assert not lec.get("bgm"), "危险路径未被拦截：%s" % bad
+
+        with open(p, "a", encoding="utf-8") as f:
+            f.write("- 背景音乐: 不存在.wav | 120\n")
+        import lint_outline
+        issues = lint_outline.lint_outline(p)
+        msgs = "\n".join(x["msg"] for x in issues)
+        assert "找不到音频文件" in msgs and "超出 0–100" in msgs, msgs
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# TST-10 页级换曲（音乐库 / 页内音乐 / 停 / 去重 / 切页钩子）
+# ---------------------------------------------------------------------------
+def _multi_music_outline():
+    import os
+    import tempfile
+    d = tempfile.mkdtemp(prefix="eink_music_")
+    for n in ("main.wav", "epic.wav", "calm.wav"):
+        _write_wav(os.path.join(d, n))
+    lines = ["- 讲次: 第1讲", "- 讲稿题目(M02): 页级换曲测试", "- 系列名: 测试", "- 总讲次数: 1",
+             "- 背景音乐: main.wav | 60", "- 音乐库: 激昂=epic.wav|70；平缓=calm.wav|40"]
+    for i, mu in enumerate((None, "激昂", "停", None, "calm.wav | 40", "激昂"), 1):
+        lines += ["", "## P%02d · 第%d页" % (i, i), "- 版式: L14",
+                  "- M08 h_xl: 标题%d" % i, "- M10 正文: 正文%d" % i]
+        if mu:
+            lines.append("- 音乐: %s" % mu)
+    p = os.path.join(d, "大纲.md")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return d, p
+
+
+@case
+def test_tst10_page_music_tracks_plan_and_hook():
+    """正例：默认曲 + 别名 + 直写路径 + 停页 + 继承；去重后 3 首、plan 逐页正确、切页钩子已注入。"""
+    import os
+    import shutil
+    ro, et = _ro(), _et()
+    d, p = _multi_music_outline()
+    try:
+        meta, pages = ro.parse_outline(p)
+        assert "音乐库" in meta and pages[1].get("music") == "激昂", (meta, pages[1])
+        lec = ro.build_lecture(meta, pages, d, os.path.join(d, "out"))
+        bgm = lec.get("bgm") or {}
+        assert len(bgm.get("tracks") or []) == 3, bgm.get("tracks")
+        assert bgm.get("plan") == [0, 1, -1, -1, 2, 1], bgm.get("plan")
+        assert all(t["src"].startswith("data:audio/wav;base64,") for t in bgm["tracks"])
+        out = et.build(lec, os.path.join(d, "out"))
+        h = open(out, encoding="utf-8").read()
+        assert h.count("data:audio/wav;base64,") == 3, "三首曲未全部内嵌"
+        assert "eink-slide-change" in h and "window.__EINK_BGM_PLAN__" not in h, "切页钩子/数据注入异常"
+        assert "[0, 1, -1, -1, 2, 1]" in h, "逐页曲目表未写进放映稿"
+        assert "本页静音" in h and "' · M '" in h and "音乐开" in h, "静音提示或 M 键提示缺失"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@case
+def test_tst10_page_music_lint_and_guard():
+    """安全与 lint：合法别名/停页零报错；未知别名、越界路径、坏音乐库条目被点名。"""
+    import os
+    import shutil
+    ro = _ro()
+    d, p = _multi_music_outline()
+    try:
+        import lint_outline
+        assert not [x for x in lint_outline.lint_outline(p) if x["level"] == "错误"], \
+            [x for x in lint_outline.lint_outline(p) if x["level"] == "错误"]
+        for bad in ("../epic.wav", "C:/Windows/media/epic.wav"):
+            lec = ro.build_lecture({"背景音乐": "main.wav", "音乐库": "激昂=%s" % bad},
+                                   [{"_pid": "P01", "music": "激昂"}], d, os.path.join(d, "out"))
+            _tk = (lec.get("bgm") or {}).get("tracks") or []
+            assert len(_tk) == 1, "音乐库危险路径未被拦截（默认曲之外混入了额外曲目）：%s | %s" % (bad, _tk)
+        with open(p, "a", encoding="utf-8") as f:
+            f.write("## P07 · 坏例子\n- 版式: L14\n- 音乐: 不存在的别名.wav\n- 音乐库: 少了等号\n")
+        msgs = "\n".join(x["msg"] for x in lint_outline.lint_outline(p))
+        assert "找不到音频文件" in msgs and "音乐库" in msgs and "缺「=」" in msgs, msgs
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------

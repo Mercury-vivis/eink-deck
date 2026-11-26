@@ -45,7 +45,8 @@ NOISE = {"v", "l", "label", "nb", "unit", "note", "ic", "t", "d", "ch", "form",
          "产物", "仅用于", "做三件事", "加载顺序", "引擎自动", "改图后", "新增主题",
          "配色", "顶部元数据", "不归本技能", "不走双基线", "本技能管", "核心思想",
          "目的", "落位", "记忆钉", "L19", "条宽口径",
-         "版本", "变更记录", "落页判断"}
+         "版本", "变更记录", "落页判断",
+         "改默认主题", "新增主题"}   # SKILL 正文的运维列表项（不是大纲语法键）
 
 
 def scan_doc(path):
@@ -72,13 +73,26 @@ def scan_doc(path):
 LAYOUT_TOK = re.compile(r"\bL(?:12b|\d{2})\b")
 
 
-def scan_layouts(path):
-    """返回文档中出现的版式码集合（去重）。"""
+def scan_layouts(path, codes):
+    """返回文档中出现的**真实版式码**集合（去重）。
+
+    先按 L\\d\\d 扫，再只保留注册表里存在的版式码：正文里的 `L53`、`L99` 这类
+    行号/编号也会被 `L\\d{2}` 命中，混进来会把「清单是否齐全」算错（实测
+    lecture SKILL 因此被报成 29/28）。不存在的码不属于版式清单，直接不计。"""
     try:
         text = open(path, encoding="utf-8-sig").read()
     except OSError:
         return set()
-    return set(LAYOUT_TOK.findall(text))
+    return set(LAYOUT_TOK.findall(text)) & set(codes)
+
+
+def unknown_layout_tokens(path, codes):
+    """文档里像版式码、但注册表里不存在的 token（如 L53）——仅供人工判断，不算问题。"""
+    try:
+        text = open(path, encoding="utf-8-sig").read()
+    except OSError:
+        return set()
+    return set(LAYOUT_TOK.findall(text)) - set(codes)
 
 
 # ---- 二期：字段 ⊆ mounts（模板规范表格行 / 示例大纲） ----
@@ -212,11 +226,11 @@ def main(argv):
 
         # 2. 版式清单完整性（仅对「声称全量版式清单」的文档检查，防止非清单文档误报）
         if "模板模块规范" in os.path.basename(doc):
-            layouts = scan_layouts(doc)
+            layouts = scan_layouts(doc, REG.LAYOUT_CODES)
             for p in check_layout_completeness(REG, layouts):
                 doc_problems.append("  ?【版式清单】%s" % p)
         else:
-            layouts = scan_layouts(doc)
+            layouts = scan_layouts(doc, REG.LAYOUT_CODES)
 
         # 3. 字段 ⊆ mounts
         for p in check_field_mounts(REG, doc):

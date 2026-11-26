@@ -18,6 +18,3 @@ Thumbs.db
 # golden / baseline 门禁产物（测试生成，不入库）
 _golden_render/
 _baseline_renders.json
-
-# 本机 WorkBuddy 状态（独立仓库时保险）
-.workbuddy/

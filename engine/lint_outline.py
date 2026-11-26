@@ -38,6 +38,15 @@
     的名字静默跳过、该格图标留空（第1次课 P12「filetext」事故：应 file-text，lint 0报但图标消失）。
     比对 engine/eink_assets/lucide_icons.txt（lucide kebab-case 白名单，由 _gen_lucide_list.mjs 从
     lucide.umd.min.js 提取）；未知名报 错误 级，渲染前拦住。lint 不解析 umd，只读预生成白名单（纯标准库）。
+  - 2026-10-27：新增「10e」强调锚点命中校验——语法速查把「锚点词须出现在当页可见文字中」列为硬约束，
+    此前无任何机器校验（第3讲 P05 事故：锚点词只写在标题、强调值写简称、正文没有那八个字，lint 0 报）。
+    引擎 em_html() 对已有文本做子串替换，0 命中时静默不变色。本项为**下限口径**：报 0 命中一定不生效，
+    不报不等于必生效（个别版式不挂某字段、词落在 M10 notes 时仍可能失效）。
+    收集口径：本页除页头/强调行/块引用（`>` 备注）/不参与着色的字段外，所有行的值拼成一段文本再逐词查。
+    不参与着色的字段（8 页逐字段渲染实测）：M01 页眉角标、M03 页脚小标、M05 kicker、M16 链接文字、
+    stats 子项 label/note——模板 esc() 直出、不过 em()，写进锚点必然 0 命中，收集时排除（否则漏报）。
+    三档报法：全角「，」分隔（引擎只按半角 split，整串成一个词）＝警告；词被 ` / ` 分行或 `|||` 分步
+    切断（两段不连通）＝提示；词在本页完全不存在＝警告。
 """
 import io
 import json
@@ -48,6 +57,10 @@ import sys
 # ---- 常量真源：syntax_registry.py（一期治理 2026-09-15：不再双份维护） ----
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import syntax_registry as REG
+try:
+    from render_outline import _BGM_MIME as BGM_MIME, _BGM_OFF as BGM_OFF_WORDS  # 音频白名单/停页词单一源
+except Exception:
+    BGM_MIME, BGM_OFF_WORDS = {}, {"停", "关", "无", "静音", "off", "stop", "none"}
 
 # ---- lucide 图标名白名单（ic= 校验数据源；由 engine/_gen_lucide_list.mjs 从
 #      eink_assets/lucide.umd.min.js 提取，lucide 升级时重跑。2026-09-18 新增） ----
@@ -63,6 +76,10 @@ except Exception:
     _LUCIDE_ICONS = set()   # 读不到则不校验（不阻断 lint）
 
 LAYOUT_CODES = REG.LAYOUT_CODES                 # 28 版式码（含 L12b）
+
+# 不走双基线的版式（与 _eink_template._DUAL_SKIP_TYPES 对应：cover/hero/statement/imagehero/interactive/raw）
+# 这些版式的标题区由版式自身决定，三行标题不会被 22vh 的 head-block 挤压。
+DUAL_SKIP_LAYOUTS = {"L01", "L02", "L15", "L17", "L24", "L27"}
 MODULE_CODES = set(REG.MODULE_FIELDS.keys())    # M01–M16
 RECIPES = REG.RECIPES                           # 10 个动效 recipe
 SPLIT_FIELDS = REG.SPLIT_FIELDS                 # 会按「两侧空白 /」分行的字段
@@ -90,6 +107,10 @@ DATA_ANIMATE_RE = re.compile(r"^\s*-\s*(?:数据_?animate|data_animate)\s*[：:]
 # L27 图幅主导（2026-09-15）：img.file / img_mode 取值校验
 IMG_FILE_RE = re.compile(r"^\s*-\s*img\.file\s*[：:]\s*(.*)$", re.I)
 IMG_MODE_RE = re.compile(r"^\s*-\s*img_mode\s*[：:]\s*(.*)$", re.I)
+# 音乐三键（与 render_outline._bgm_data / build_lecture 同口径）
+BGM_RE = re.compile(r"^\s*-\s*背景音乐\s*[：:]\s*(.*)$", re.I)
+MUSIC_LIB_RE = re.compile(r"^\s*-\s*音乐库\s*[：:]\s*(.*)$", re.I)
+MUSIC_PAGE_RE = re.compile(r"^\s*-\s*音乐\s*[：:]\s*(.*)$", re.I)
 # 3a. 未知顶层键（2026-09-15 阶段3a）：引擎 parse_outline 对不认识的顶层键行——
 # 所有正则分支都不匹配 → 整行被静默跳过（不上屏、不报错）。此检查把它显式化。
 TOPKEY_RE = re.compile(r"^-\s*([A-Za-z\u4e00-\u9fff][\w\u4e00-\u9fff]*(?:\(M\d+\+\w+\))?(?:\.[A-Za-z]+)?)\s*[：:]\s*(.*)$")
@@ -98,6 +119,38 @@ VALID_TOPKEYS = set(REG.META_KEYS) | set(REG.PAGE_KEYS) | set(REG.COMPOUND_KEYS)
 # 文末留痕区节标题（三道闸/教师备注/配图设计说明等）：这些节里的列表行是教师自检产物，
 # 不是页面字段——命中即进入 in_gate（3a 未知键检查跳过），直到下一个页头恢复。
 GATE_SECTION_RE = re.compile(r"^#{2,4}\s*(闸一|闸二|闸三|三道闸|教师备注|备注|本讲配图设计说明|配图设计说明|逐页明细|教师参考|变更日志)")
+
+
+def _check_bgm_spec(ln, label, val, outline_dir, add):
+    """背景音乐 / 音乐库 / 页内音乐共用校验：路径安全、扩展名、文件存在、音量 0–100。"""
+    val = (val or "").strip()
+    if not val:
+        add(ln, "警告", "「%s:」值为空——写了等于没写，放映无音乐" % label,
+            "写相对大纲目录的音频路径，可带音量：%s: bgm.mp3 | 60" % label)
+        return
+    _bp = val.split("|")
+    rel = _bp[0].strip().strip("\"'")
+    if os.path.isabs(rel) or ".." in rel.replace("\\", "/").split("/"):
+        add(ln, "错误", "「%s:」拒绝绝对路径与目录穿越——引擎会跳过，放映无音乐" % label,
+            "音频放在大纲目录内，写相对路径，如 bgm.mp3 或 audio/bgm.mp3")
+        return
+    _ext = os.path.splitext(rel)[1].lower()
+    if BGM_MIME and _ext not in BGM_MIME:
+        add(ln, "警告", "「%s:」格式 %s 不在白名单——引擎会跳过" % (label, _ext or "无扩展名"),
+            "支持：%s" % " / ".join(sorted(BGM_MIME)))
+    elif rel and not os.path.isfile(os.path.join(outline_dir, rel.replace("/", os.sep))):
+        add(ln, "警告", "「%s:」找不到音频文件：%s——引擎会跳过" % (label, rel),
+            "路径相对大纲所在目录；确认文件名与大小写")
+    if len(_bp) > 1 and _bp[1].strip():
+        try:
+            _bv = float(_bp[1].strip())
+        except ValueError:
+            add(ln, "警告", "「%s:」音量不是数字——引擎按 60 处理" % label,
+                "音量为 0–100 的整数，如 %s: bgm.mp3 | 60" % label)
+        else:
+            if not 0 <= _bv <= 100:
+                add(ln, "警告", "「%s:」音量 %s 超出 0–100——引擎会截断" % (label, _bp[1].strip()),
+                    "音量写 0–100，默认 60")
 
 
 def _is_pageish(line):
@@ -128,6 +181,31 @@ def _has_half_spaced_slash(s):
     return False
 
 
+_CUT = "\x00"   # 锚点跨不过的切断点（与不可见字符同效，正文里不可能出现）
+
+
+def _visible_text(s, cut=True):
+    """把一行大纲「值」近似还原成渲染后页面上能看到的文字，供强调锚点命中校验用。
+
+    `cut=True`：把引擎会切断的地方替换成 `_CUT`——`|||`（分步）与两侧空白的 ` / `（分行）
+    渲染后是不连通的文本，锚点跨过去在页面上不会命中。
+    `cut=False`：把同一批分隔符**删掉**，得到「假如不分行、不分布」的连续文本；
+    两相对照即可区分「词根本不存在」与「词被分隔符切断」——后者降级为提示，
+    因为改法完全不同（挪分行位置，而不是补文字）。
+
+    只去行内标签（`<size=…>` / `</size>` / `<ico=…>` 等）与 Markdown 粗体星号——
+    文字本身一律保留。口径是**宽收**：宁可漏报，也不让一页正常的大纲满屏假警。
+    """
+    s = re.sub(r"<[^>]*>", "", s)
+    if cut:
+        s = s.replace("|||", _CUT)
+        s = re.sub(r"\s+[/／]\s+", _CUT, s)
+    else:
+        s = s.replace("|||", "")
+        s = re.sub(r"\s+[/／]\s+", "", s)
+    return s.replace("**", "")
+
+
 def lint_outline(path):
     """主入口：返回问题列表 [{line, level, msg, fix}]。只读，不改任何文件。"""
     issues = []
@@ -138,6 +216,7 @@ def lint_outline(path):
         return [{"line": 0, "level": "错误", "msg": "无法读取大纲文件：%s" % e, "fix": "确认路径与编码（utf-8 / utf-8-sig）"}]
 
     page = None            # 当前页号（如 "P11"）
+    cur_layout = None      # 当前页版式码（标题行数检查要按「走不走双基线」分支）
     in_gate = False        # 文末留痕区（三道闸/教师备注等）：3a 未知键检查跳过
     seen_pages = {}        # 页号 -> 首次出现行号
     m12_files = {}         # 当前页已出现的 M12 文件 数
@@ -146,6 +225,14 @@ def lint_outline(path):
     items_pages = {}       # 当前页是否有 items: 链
     in_compound_key = None # 当前复合键名（items/stats/...；2026-09-15 子项前缀检查状态）
     outline_dir = os.path.dirname(os.path.abspath(path))
+    # 页内 `音乐:` 可引用顶部 `音乐库:` 别名；先全量扫别名，避免别名写在页后才报未知。
+    music_aliases = set()
+    for _l0 in lines:
+        _m0 = MUSIC_LIB_RE.match(_l0)
+        if _m0:
+            for _s0 in re.split(r"[；;]", _m0.group(1)):
+                if "=" in _s0 and _s0.split("=", 1)[0].strip():
+                    music_aliases.add(_s0.split("=", 1)[0].strip())
 
     def add(ln, level, msg, fix):
         issues.append({"line": ln, "level": level, "msg": msg, "fix": fix,
@@ -172,6 +259,7 @@ def lint_outline(path):
                     else:
                         seen_pages[pid] = i
                     page = pid
+                    cur_layout = None
                     m12_files = {}
                     svg_pages = {}
                     in_gate = False
@@ -301,6 +389,44 @@ def lint_outline(path):
                     "路径写法：images/文件名.webp（禁绝对路径与目录穿越，引擎会拦截）")
             continue
 
+        # ---- 2j. 音乐三键：顶部默认曲 / 音乐库别名 / 页内换曲或停 ----
+        _mbgm = BGM_RE.match(line)
+        if _mbgm:
+            _check_bgm_spec(i, "背景音乐", _mbgm.group(1), outline_dir, add)
+            continue
+        _mlib = MUSIC_LIB_RE.match(line)
+        if _mlib:
+            _lv = _mlib.group(1).strip()
+            if not _lv:
+                add(i, "警告", "「音乐库:」值为空——写了等于没写", "写法：音乐库: 激昂=epic.mp3|70；平静=calm.mp3|40")
+            for _seg in re.split(r"[；;]", _lv):
+                if not _seg.strip():
+                    continue
+                if "=" not in _seg:
+                    add(i, "错误", "「音乐库:」条目缺「=」，引擎会跳过该首：%s" % _seg.strip(),
+                        "写法：别名=文件.mp3|音量；多首用「；」分隔")
+                    continue
+                _nm, _sp = _seg.split("=", 1)
+                if not _nm.strip():
+                    add(i, "错误", "「音乐库:」条目别名为空，引擎会跳过该首：%s" % _seg.strip(),
+                        "写法：别名=文件.mp3|音量")
+                else:
+                    _check_bgm_spec(i, "音乐库·%s" % _nm.strip(), _sp, outline_dir, add)
+            continue
+        _mmu = MUSIC_PAGE_RE.match(line)
+        if _mmu:
+            _mv = _mmu.group(1).strip()
+            if not _mv:
+                add(i, "警告", "「音乐:」值为空——本页沿用上一页，写了等于没写",
+                    "写别名 / 路径|音量 / 停（本页静音）")
+            elif _mv.lower() in BGM_OFF_WORDS:
+                pass
+            elif _mv in music_aliases:
+                pass
+            else:
+                _check_bgm_spec(i, "音乐", _mv, outline_dir, add)
+            continue
+
         # ---- 3/4/5/7/8. 模块行 ----
         mm = MODULE_RE.match(line)
         if mm:
@@ -324,19 +450,74 @@ def lint_outline(path):
                         add(i, "警告", "M12 文件指向的图不存在：%s%s" % (fp, hint),
                             "补图或改路径；渲染会退回占位框")
                 continue
-            # 标题行数（M06 h_hero / M08 h_xl）：双基线只预留两行，三行以上溢出标题区、与正文叠压
+            # 标题行数（M06 h_hero / M08 h_xl）：按「走不走双基线」分别报，且都不是硬错
+            #   实测 2026-10-27（第3讲 P35 三行标题，Edge 无头逐分辨率截图）：
+            #     L15 收束页（hero，不走双基线）1600×900 → 三行完整容纳，不叠压、不裁切；
+            #       1024×768 / 1280×1024 → 第三行（10 个全角字）折出第 4 行，仍未裁切、未压页脚。
+            #     走双基线的内页：head-block 预留 22vh 两行，三行会把标题区撑高、正文整体下移（v2.4.39 起 auto 撑高，不叠压）。
+            #   故 hero/cover/statement 类只提示「确认投影分辨率」，双基线页报警告「正文空间会变紧」，均不阻断渲染。
             if mod in ("M06", "M08") and re.search(r"h_(hero|xl)", field):
                 _tn = len(re.split(r"\s+[/／]\s+", val))
                 if _tn >= 3:
-                    add(i, "错误", "标题分成 %d 行——双基线标题区只预留两行，三行会溢出、与正文叠压" % _tn,
-                        "精简到两行内（结论型短标题）；或拆成两页、一页一个判断")
+                    if cur_layout in DUAL_SKIP_LAYOUTS:
+                        add(i, "提示", "标题分成 %d 行——本版式不走双基线，三行不受限（16:9 实测完整容纳），建议在实际投影分辨率上确认一次：窄屏下单行过长会折出第 %d 行" % (_tn, _tn + 1),
+                            "想更稳可把最长一行拆短或精简一两字；不调整也能正常放映")
+                    else:
+                        add(i, "警告", "标题分成 %d 行——双基线标题区按两行预留（22vh），三行会把标题区撑高、正文整体下移" % _tn,
+                            "正文较长时可能挤；可精简为两行，或改用不走双基线的版式（L02/L15），或拆成两页")
                     continue
-            # 字号三控（M06/M08/M10 不支持，写了不生效）
-            if mod in ("M06", "M08", "M10") and field.startswith("字号"):
-                add(i, "警告", "M%s 不支持「字号」三控（引擎告警并忽略，写了不生效）" % mod,
-                    {"M06": "行内 <size=0.6>词</size>", "M08": "「M08 行大小: 小·大」",
-                     "M10": "行尾未闭合 <size=大>（整段）或 <size=大>词</size>（局部）"}[mod])
+            # 「行字号/行大小/行对齐」是逐行属性，只对多行标题有意义：M08 三个全支持，
+            # M06 只支持「行对齐」（引擎 M06 分支按 "对齐" in field 匹配），无逐行字号。
+            # 写到别的元件上不会报错，会顺着正文兜底当内容渲染上屏（实测
+            # 「M10 行字号: 大」→ 页面多出一段正文「大」，lint 当时 0 提示）。
+            _line_ok = {"M08": ("行字号", "行大小", "行对齐"), "M06": ("行对齐",)}.get(mod, ())
+            _line_bad = [k for k in ("行字号", "行大小", "行对齐")
+                         if field.startswith(k) and k not in _line_ok]
+            if _line_bad:
+                add(i, "错误", "「%s」不能用在 %s 上——逐行属性只对多行标题有效，写在这里会被当成正文内容渲染上屏" % (_line_bad[0], mod),
+                    "M08 支持 行字号/行大小/行对齐，M06 只支持 行对齐；逐块字号用行内 <size=大/小>…</size>，"
+                    "整页字号用「%s 字号: 大/小」" % mod)
                 continue
+            # 字号三控（M06/M08/M10 自 2026-11-20 起均支持；M12 无字号概念，写即拦截）
+            if mod == "M12" and field.startswith("字号"):
+                add(i, "错误", "M12 不支持「字号」——图片不是文字，写了会被引擎告警忽略",
+                    "缩放请用 «M12 maxh: 数字»（图框高度占屏 vh）或 «M12 ratio: 4x3/1x1/3x4»；"
+                    "上下左右微调用 «M12 垂直/水平»")
+                continue
+            # 行内 <size=> 不支持嵌套：引擎按非贪婪匹配先吃外层，内层的开标签会被当整段
+            # 标记剥离、末尾闭标签漏成标签文字（词表面上还放大，很容易漏看）。
+            # 判据是「栈深 ≥2」而不是数开标签个数——同一行写两个独立 span 是合法写法。
+            # 角标类字段（M01/M02/M03/M04/M16）走纯文字转义，不参与行内富文本，跳过。
+            if mod not in ("M01", "M02", "M03", "M04", "M16"):
+                _depth, _nested = 0, False
+                for _t in re.finditer(r"<(/)?size\s*[=>]", val or ""):
+                    if _t.group(1):
+                        _depth = max(0, _depth - 1)
+                    else:
+                        _depth += 1
+                        if _depth >= 2:
+                            _nested = True
+                            break
+                if _nested:
+                    add(i, "错误", "行内 <size=> 不能嵌套——内层会被静默丢弃、末尾闭标签漏成标签文字",
+                        "整段放大写成不带闭合的 <size=大>；局部放大另起一段写 <size=大>词</size>，两者不要套在一起")
+                    continue
+            # 行内精确强调 <accent>（2026-11-20）：只校验"写了必然出错"的情形，不管内容取舍
+            if "<accent" in (val or ""):
+                if mod in ("M01", "M03", "M05", "M12", "M16"):
+                    add(i, "错误", "%s 这个字段不参与强调着色，<accent> 会原样显示成标签文字" % mod,
+                        "行内强调只写进走强调渲染的字段：M06/M07/M08 标题、M10 正文、M11 引文、"
+                        "M13 注释、M14 下标、items 子项；这几个角标/图注/链接字段请改用页级「强调:」以外的方式表述")
+                    continue
+                _op = len(re.findall(r"<accent\s*>", val))
+                _cl = len(re.findall(r"</accent\s*>", val))
+                if _op != _cl:
+                    add(i, "错误", "<accent> 未闭合（开 %d 个 / 闭 %d 个）——未闭合的部分会原样显示成标签" % (_op, _cl),
+                        "成对写：<accent>要强调的词</accent>")
+                    continue
+                if re.search(r"<accent\s*>\s*</accent\s*>", val):
+                    add(i, "警告", "<accent></accent> 中间是空的，不会产生任何着色", "把要强调的词放进标签中间")
+                    continue
             # ||| 位置检查（2026-09-09 起仅 M10 正文/notes/列表 支持分步）
             if "|||" in val and mod != "M10":
                 add(i, "警告", "「|||」写在 %s %s——该字段不支持分步，||| 会按字面量渲染进页面" % (mod, field or "(主值)"),
@@ -355,8 +536,11 @@ def lint_outline(path):
                         "若想两者并存，把同一分步内的并列内容改用「、」或改写；确要 / 分行请拆到多行")
                 continue
             # 单独贴字斜杠提示（仅对会分行的字段；有空白斜杠时不必提示）
+            # 先剥掉标签再判：`</accent>`、`</size>` 这些结束标签自带斜杠，
+            # 不剥会把「用了任何成对行内标记」误报成「贴字斜杠」（2026-11-20 修）
             if mod == "M10" and not field.startswith(("字号", "垂直", "水平")) and field.strip() not in ("notes",):
-                if val and re.search(r"\S[/／]\S", val) and not re.search(r"\s+[/／]\s+", val):
+                _plain = re.sub(r"<[^>]*>", "", val or "")
+                if _plain and re.search(r"\S[/／]\S", _plain) and not re.search(r"\s+[/／]\s+", _plain):
                     add(i, "提示", "值里有贴字斜杠（如 a/b）——本字段按约定不切分，斜杠将原样显示",
                         "若想分行/分项，用两侧带空白的「 / 」；若是内容斜杠（如 唐/突厥）请忽略本条")
             # 半空格斜杠警告（2026-09-17 新增）：仅对「按两侧空白 / 才分行」的字段，
@@ -380,6 +564,7 @@ def lint_outline(path):
         lm = re.match(r"^\s*-\s*版式\s*:\s*(\S+)\s*(?:[·•\-]\s*(.*))?$", line)
         if lm:
             code = lm.group(1).strip()
+            cur_layout = code
             if code not in LAYOUT_CODES:
                 if code.upper() in {c.upper() for c in LAYOUT_CODES}:
                     add(i, "错误", "版式码 %s 大小写不符（引擎按原样查找，查不到会告警并退回默认版式）" % code,
@@ -479,6 +664,105 @@ def lint_outline(path):
                            "msg": "同页出现「M12 文件:」与「svg:」——引擎 _img_figure 优先渲染 svg，M12 图片被静默覆盖",
                            "fix": "二选一：删掉 M12 文件 行（保留示意图）或删掉 svg:（保留真实图）",
                            "text": lines[_b3["svg"] - 1].strip()})
+
+    # ---- 10e. 强调锚点是否真能在本页命中（2026-10-27 新增） ----
+    # 引擎 em_html() 是对「已渲染文本」做子串替换：锚点词在本页一个都没出现时，
+    # 静默不变色、渲染层不报错——2026-10-27 第3讲 P05 真实事故（锚点词只写在标题、
+    # 强调值写了简称、正文没有那八个字，lint 当时 0 报）。语法速查把「锚点词须出现在
+    # 当页可见文字中」列为硬约束，此前无任何机器校验。
+    #
+    # 判据口径（下限，宽收）：把本页除页头/强调行外所有行的「值」拼成一段文本再逐词查 in。
+    #   · 报「0 命中」→ 一定不生效；
+    #   · 不报 ≠ 必生效：个别版式不挂某字段、或词落在 M10 notes（讲者备注不上屏）时仍可能失效，
+    #     故不宣称「命中即等于渲染后变红」。宽收的代价是漏报，换来 16 讲大纲零假警。
+    #
+    # 已实测不参与着色的字段（2026-10-27，8 页逐字段渲染对照 + 第10讲逐页 accent 复核，见 CHANGELOG）：
+    #   M01 页眉角标 / M03 页脚小标 / M05 kicker / M16 链接文字 / stats 子项（label、note）
+    #   / callout_src（M11 引文出处行、L05 栏内引文出处，模板走 esc() 直出）。
+    #   它们不过 em()，写进锚点必然 0 命中——收集时排除，否则会漏报（判"命中"实为不生效）。
+    _NO_EM_MODULES = {"M01", "M03", "M05", "M12", "M16"}
+    _NO_EM_KEYS = ("版式", "纵向", "规则线", "图对齐", "img_mode", "img.file",
+                   "data_animate", "数据_animate", "数据animate", "scale", "whitespace",
+                   "示意", "设计", "::design", "callout_src")
+    _pg_em, _cur4, _skip4 = {}, None, None
+    for _i, _raw in enumerate(lines, 1):
+        _hm = re.match(r"^#{2,4}\s*(P\d+)\b", _raw)
+        if _hm:
+            _cur4 = _hm.group(1)
+            _skip4 = None
+            _pg_em.setdefault(_cur4, {"val": None, "line": 0, "text": []})
+            continue
+        if _cur4 is None:
+            continue
+        _b4 = _pg_em[_cur4]
+        _em4 = EMPH_RE.match(_raw)
+        if _em4:
+            _b4["val"] = _em4.group(1).strip()      # 强调行本身不进可见文本（否则恒命中）
+            _b4["line"] = _i
+            _skip4 = None
+            continue
+        if _skip4:                                  # stats 块：只留 nb 值
+            if _raw.startswith((" ", "\t")) and _raw.strip():
+                if _skip4 == "stats":
+                    # nb 渲染成固定 `.stat-nb accent`，本就带强调色——锚点写数字与它同效，不报。
+                    # label / note / unit 走普通 div，不过 em()，写进锚点必然 0 命中。
+                    _nb4 = re.search(r"(?:^|[/／])\s*nb\s*=\s*([^/／]+)", _raw)
+                    if _nb4:
+                        _b4["text"].append(_nb4.group(1).strip())
+                continue
+            _skip4 = None
+        if _raw.lstrip().startswith(">"):
+            continue                                # 块引用＝教师备注/锚点/出处档位，不上屏
+        _mb4 = re.match(r"^-\s*(M\d{1,2})\b", _raw)
+        if _mb4 and _mb4.group(1).upper() in _NO_EM_MODULES:
+            continue
+        if re.match(r"^-\s*stats\s*[：:]\s*$", _raw):
+            _skip4 = "stats"
+            continue
+        if re.match(r"^-\s*(?:M\d{1,2}\s+)?(?:%s)\s*[：:]" % "|".join(re.escape(k) for k in _NO_EM_KEYS), _raw):
+            continue                                # 元字段值不是页面正文
+        _s4 = re.sub(r"^\s*-\s*", "", _raw.rstrip())
+        # 复合子项行（`- t=值 / d=值`）里没有「字段名: 值」结构，整行都是内容——
+        # 不能剥「第一个冒号前」：`d=兵农合一：平时种地…` 会把词组本身剥掉（2026-10-27 实测踩坑）。
+        if re.match(r"^[A-Za-z\u4e00-\u9fff][\w\u4e00-\u9fff]*\s*=", _s4):
+            _b4["text"].append(_s4)
+            continue
+        _kv4 = re.match(r"^[^：:]{1,24}[：:]\s*(.*)$", _s4)   # 只取值、去掉「字段名:」前缀
+        _b4["text"].append(_kv4.group(1) if _kv4 else _s4)
+    for _p, _b4 in _pg_em.items():
+        _v4 = _b4["val"]
+        if not _v4 or not (_v4.startswith("[") and _v4.rstrip().endswith("]")):
+            continue        # 缺方括号 / 半截写法已由第 2 项单独报「错误」
+        _words = [w.strip().strip("'\"") for w in _v4.strip().strip("[]").split(",") if w.strip()]
+        if not _words:
+            continue        # 空锚点已由第 2 项单独报「警告」
+        _join = "\n".join(_b4["text"])
+        _hard = _visible_text(_join, cut=True)
+        _loose = _visible_text(_join, cut=False)
+        _miss = [w for w in _words if w not in _hard]
+        if not _miss:
+            continue
+        if len(_words) == 1 and re.search(r"[，、；]", _words[0]):
+            issues.append({"line": _b4["line"], "level": "警告", "page": _p,
+                           "msg": "「强调:」用了全角「，」/「、」分隔——引擎只按半角逗号 split，"
+                                  "整串被当成一个锚点词，本页必然 0 命中（不变色、不报错）",
+                           "fix": "改用半角逗号：强调: [词1, 词2]",
+                           "text": lines[_b4["line"] - 1].strip()})
+            continue
+        _soft = [w for w in _miss if w in _loose]
+        if _soft and len(_soft) == len(_miss):
+            issues.append({"line": _b4["line"], "level": "提示", "page": _p,
+                           "msg": "强调锚点 %s 被「 / 」分行或「|||」分步切成两段——页面上两段之间不连通，"
+                                  "跨段不会命中、静默不变色" % "、".join(_soft),
+                           "fix": "把锚点词缩短到落在同一段内（如只取后半句），或调整分行位置让词完整落在一行",
+                           "text": lines[_b4["line"] - 1].strip()})
+            continue
+        issues.append({"line": _b4["line"], "level": "警告", "page": _p,
+                       "msg": "强调锚点 %s 在本页可见文字里 0 命中——渲染静默不变色（不报错）："
+                              "强调是给已有文字换色，不是新增内容块" % "、".join(_miss),
+                       "fix": "把锚点词改成页面上真实出现的字（标题/M10 正文/条目/M14 脚注都算），"
+                              "或在正文补上这几个字；确无对应文字请删掉该锚点",
+                       "text": lines[_b4["line"] - 1].strip()})
 
     # ---- 11. 侧车 JSON（默认输出目录 <stem>_eink/_svg_overrides.json） ----
     stem = os.path.splitext(os.path.basename(path))[0]
