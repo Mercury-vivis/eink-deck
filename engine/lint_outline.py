@@ -354,8 +354,8 @@ def lint_outline(path):
                     "hbar / kpitower / loop / system / wall；拼错或 h-bar 此类连字符写法都会静默失效")
             continue
 
-        # ---- 2f. 纵向/规则线/图对齐 取值校验 ----
-        vmd = re.match(r"^-\s*(纵向|规则线|图对齐)[：:]\s*(.*)$", line)
+        # ---- 2f. 纵向/规则线/图对齐 + L06 列宽/行缩放 取值校验 ----
+        vmd = re.match(r"^-\s*(纵向|规则线|图对齐|列宽|行缩放)[：:]\s*(.*)$", line)
         if vmd:
             vk, vv = vmd.group(1), vmd.group(2).strip()
             if vk == "纵向" and vv not in ("顶", "中", "底"):
@@ -367,6 +367,24 @@ def lint_outline(path):
             elif vk == "图对齐" and vv not in ("底", "顶"):
                 add(i, "警告", "「图对齐: %s」非法——只认 底/顶（默认顶对齐）" % vv,
                     "写「图对齐: 底」让 L05 右图坐底")
+            elif vk == "列宽":
+                _cm = re.match(r"^\s*(\d{1,2})\s*[/:：]\s*(\d{1,2})\s*[/:：]\s*(\d{1,2})\s*$", vv)
+                if not _cm:
+                    add(i, "警告", "「列宽: %s」非法——须三段正整数、斜杠或冒号分隔，本页静默沿用默认 25/50/25" % vv,
+                        "三段各≥5、和为100；写法：列宽: 20/60/20（k/v/m）")
+                else:
+                    _ps = [int(x) for x in _cm.groups()]
+                    if any(x < 5 for x in _ps) or sum(_ps) != 100:
+                        add(i, "警告", "「列宽: %s」非法——三段各≥5且和须为100，本页静默沿用默认 25/50/25" % vv,
+                            "例：列宽: 20/60/20（合计100）；引擎默认 25/50/25")
+            elif vk == "行缩放":
+                try:
+                    _sv = float(vv)
+                except ValueError:
+                    _sv = None
+                if _sv is None or not (0.4 <= _sv <= 1.5):
+                    add(i, "警告", "「行缩放: %s」非法——须 0.4–1.5 的小数，本页静默沿用按行数自动值" % vv,
+                        "例：行缩放: 0.85（长句换行压线时用；越小字号与行距越紧）")
             continue
 
         # ---- 2g. L27 img_mode 取值校验（2026-09-15 新增） ----

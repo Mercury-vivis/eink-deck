@@ -281,6 +281,21 @@ PAGE_KEYS = {
         "layouts": ["L05"],
         "constraint": "底 | 顶",
     },
+    # —— L06 年表单页微调（2026-11-26）——
+    "列宽": {
+        "status": "ACTIVE",
+        "anchor": "render_outline.parse_outline:vmk",
+        "semantics": "L06 年表三列（k/v/m）列宽比例，覆盖 CSS 默认 25/50/25。只影响写了的页；不写沿用默认。",
+        "layouts": ["L06"],
+        "constraint": "三段正整数、各≥5、和为100，斜杠或冒号分隔（如 20/60/20）；非法值静默沿用默认",
+    },
+    "行缩放": {
+        "status": "ACTIVE",
+        "anchor": "render_outline.parse_outline:vmk",
+        "semantics": "L06 年表行字号/内距缩放，覆盖按行数自动算的 --rs（同时缩放 padding 与三列字号）。用于长句换行压线的单页修正；不写沿用自动值。",
+        "layouts": ["L06"],
+        "constraint": "0.4–1.5 的小数（如 0.85）；非法值静默沿用自动值",
+    },
     "img.file": {
         "status": "ACTIVE",
         "anchor": "render_outline.parse_outline:img.file",

@@ -1,6 +1,6 @@
 [project]
 name = "eink-deck"
-version = "3.2.1"
+version = "3.2.2"
 description = "Outline Markdown -> single-file horizontal-flip HTML PPT rendering engine"
 requires-python = ">=3.12"
 dependencies = [

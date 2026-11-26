@@ -2127,14 +2127,34 @@ def p_grid2(s, ctx):
             '</div>%s</div>') % (grid_cls, extra, _hc, esc(s.get("kicker", "")), _hxl(s), left_html, callout_html, img)
 
 def p_rowline(s, ctx):
-    _MOUNT = {"M08", "M10", "rows:"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
+    _MOUNT = {"M08", "M10", "rows:", "列宽", "行缩放"}  # 本版式**原生**内容字段（MOUNTS 唯一源：gen_mounts.py 读取，禁止手改注册表）；通用元件（M01/M03/M05/M11/M13/M14/M16/强调/纵向/规则线）由 syntax_registry.MOUNT_ALL 全版式放行，不登记于此
     rows = []
     _n = len(s.get("rows", []))
     _rs = 1.0 if _n <= 5 else (0.82 if _n <= 7 else (0.72 if _n <= 9 else (0.62 if _n <= 12 else 0.54)))
+    # L06 单页行缩放（2026-11-26）：大纲写 `行缩放: 0.85` 覆盖按行数自动算的 --rs。
+    # --rs 同时缩放 padding 与三列字号（见 _CSS .rowline*），故能一并解决长句换行压线。
+    # 非法值静默沿用自动值，与「纵向/规则线/图对齐」非法值口径一致。
+    _rs_ov = str(s.get("行缩放") or "").strip()
+    if _rs_ov:
+        try:
+            _rv = float(_rs_ov)
+            if 0.4 <= _rv <= 1.5:
+                _rs = _rv
+        except ValueError:
+            pass
     _rs_s = ("%.2f" % _rs)
+    # L06 单页列宽（2026-11-26）：大纲写 `列宽: 20/60/20`（兼容冒号）覆盖 CSS 默认 1fr 2fr 1fr。
+    # 三段正整数、各≥5、和为 100 才生效；否则静默沿用默认。
+    _cols_css = ""
+    _mc = re.match(r"^\s*(\d{1,2})\s*[/:：]\s*(\d{1,2})\s*[/:：]\s*(\d{1,2})\s*$",
+                   str(s.get("列宽") or ""))
+    if _mc:
+        _parts = [int(x) for x in _mc.groups()]
+        if all(x >= 5 for x in _parts) and sum(_parts) == 100:
+            _cols_css = "grid-template-columns:%dfr %dfr %dfr;" % tuple(_parts)
     for r in s.get("rows", []):
-        rows.append('<div class="rowline" data-anim style="flex:1;align-items:center;--rs:%s"><div class="k">%s</div><div class="v">%s</div><div class="m">%s</div></div>'
-                    % (_rs_s, esc(r.get("k","")), em(r.get("v",""), s.get("emphasis")), esc(r.get("m",""))))
+        rows.append('<div class="rowline" data-anim style="%sflex:1;align-items:center;--rs:%s"><div class="k">%s</div><div class="v">%s</div><div class="m">%s</div></div>'
+                    % (_cols_css, _rs_s, esc(r.get("k","")), em(r.get("v",""), s.get("emphasis")), esc(r.get("m",""))))
     # 容器 flex:1 纵向均分剩余页高：行数多→每行自动变矮装下不溢出；行数少→每行变高更大气
     return ('<div class="frame">'
             '<div class="kicker" data-anim>%s</div>'

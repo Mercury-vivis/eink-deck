@@ -624,7 +624,8 @@ def parse_outline(path):
                 cur["music"] = um.group(1).strip()
                 continue
             # 页面级纵向落位/规则线/图底对齐：- 纵向:顶/中/底、- 规则线:是、- 图对齐:底
-            vmk = re.match(r"^-\s*(纵向|规则线|图对齐)[：:]\s*(.*)$", line)
+            # L06 年表单页微调（2026-11-26）：- 列宽:20/60/20、- 行缩放:0.85；非法值渲染侧静默沿用默认
+            vmk = re.match(r"^-\s*(纵向|规则线|图对齐|列宽|行缩放)[：:]\s*(.*)$", line)
             if vmk:
                 cur[vmk.group(1)] = vmk.group(2).strip()
                 continue
@@ -761,7 +762,8 @@ def _apply_content_fields(p, s):
     if p.get("data_animate"):
         s["data_animate"] = p["data_animate"]  # 局部动效覆盖
     # 纵向落位/规则线/图底对齐：透传，供 _apply_frame_mods / p_grid2 消费
-    for _vk in ("纵向", "规则线", "图对齐"):
+    # 列宽/行缩放：L06 年表 p_rowline 消费（2026-11-26）
+    for _vk in ("纵向", "规则线", "图对齐", "列宽", "行缩放"):
         if p.get(_vk) is not None:
             s[_vk] = p[_vk]
     if p.get("tag"):

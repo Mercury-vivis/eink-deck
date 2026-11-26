@@ -984,6 +984,70 @@ def test_tst10_page_music_lint_and_guard():
 
 
 # ---------------------------------------------------------------------------
+# TST-11 L06 年表单页列宽/行缩放（2026-11-26）
+# ---------------------------------------------------------------------------
+def _rowline_outline():
+    import os
+    import tempfile
+    d = tempfile.mkdtemp(prefix="eink_rowline_")
+    lines = ["- 讲次: 第1讲", "- 讲稿题目(M02): 年表列宽测试", "- 系列名: 测试", "- 总讲次数: 1",
+             "## P01 · 年表默认", "- 版式: L06", "- M08 h_xl: 默认页",
+             "- rows:", "  - k=537 / v=小关 / m=窦泰战死", "  - k=537 / v=沙苑 / m=李弼横击",
+             "## P02 · 年表微调", "- 版式: L06", "- M08 h_xl: 微调页",
+             "- 列宽: 20/60/20", "- 行缩放: 0.85",
+             "- rows:", "  - k=537 / v=小关 / m=窦泰战死", "  - k=537 / v=沙苑 / m=李弼横击"]
+    p = os.path.join(d, "大纲.md")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return d, p
+
+
+@case
+def test_tst11_rowline_colwidth_and_scale():
+    """正例：列宽/行缩放只影响写了的页；HTML 逐行注入 grid-template-columns 与 --rs 覆盖值。"""
+    import os
+    import shutil
+    ro, et = _ro(), _et()
+    d, p = _rowline_outline()
+    try:
+        meta, pages = ro.parse_outline(p)
+        assert pages[0].get("列宽") is None and pages[1]["列宽"] == "20/60/20", pages
+        assert pages[1].get("行缩放") == "0.85", pages[1]
+        lec = ro.build_lecture(meta, pages, d, os.path.join(d, "out"))
+        out = et.build(lec, os.path.join(d, "out"))
+        h = open(out, encoding="utf-8").read()
+        assert h.count("grid-template-columns:20fr 60fr 20fr") == 2, "列宽未逐行注入微调页两行"
+        assert h.count("--rs:0.85") == 2, "行缩放覆盖值未逐行注入"
+        assert "--rs:1.00" in h, "默认页自动行缩放丢失"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@case
+def test_tst11_rowline_bad_values_and_lint():
+    """反例：非法列宽/行缩放静默沿用默认；lint 对两类非法值各出警告。"""
+    import os
+    import shutil
+    ro, et = _ro(), _et()
+    d, p = _rowline_outline()
+    try:
+        with open(p, "a", encoding="utf-8") as f:
+            f.write("\n## P03 · 非法值\n- 版式: L06\n- 列宽: 20/60\n- 行缩放: 9\n"
+                    "- rows:\n  - k=1 / v=测试 / m=备注\n")
+        meta, pages = ro.parse_outline(p)
+        lec = ro.build_lecture(meta, pages, d, os.path.join(d, "out"))
+        out = et.build(lec, os.path.join(d, "out"))
+        h = open(out, encoding="utf-8").read()
+        assert h.count("grid-template-columns:20fr 60fr 20fr") == 2, "非法列宽不应注入"
+        assert "--rs:9.00" not in h, "越界行缩放不应注入"
+        import lint_outline
+        msgs = "\n".join(x["msg"] for x in lint_outline.lint_outline(p))
+        assert "列宽: 20/60" in msgs and "行缩放: 9" in msgs, msgs
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
 # runner
 # ---------------------------------------------------------------------------
 def main():
